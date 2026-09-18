@@ -64,12 +64,12 @@ function drawBars(container, data) {
 
   // 渐变定义
   const defs = el('defs', {}, svg);
-  el('linearGradient', { id: 'g-exp', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-  el('stop', { offset: '0%', 'stop-color': '#fca5a5' }, defs);
-  el('stop', { offset: '100%', 'stop-color': '#dc2626' }, defs);
-  el('linearGradient', { id: 'g-inc', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-  el('stop', { offset: '0%', 'stop-color': '#6ee7b7' }, defs);
-  el('stop', { offset: '100%', 'stop-color': '#059669' }, defs);
+  const gExp = el('linearGradient', { id: 'g-exp', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  el('stop', { offset: '0%', 'stop-color': '#fca5a5' }, gExp);
+  el('stop', { offset: '100%', 'stop-color': '#dc2626' }, gExp);
+  const gInc = el('linearGradient', { id: 'g-inc', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  el('stop', { offset: '0%', 'stop-color': '#6ee7b7' }, gInc);
+  el('stop', { offset: '100%', 'stop-color': '#059669' }, gInc);
 
   // 网格线 + Y 轴标签
   for (let i = 0; i <= 2; i++) {
