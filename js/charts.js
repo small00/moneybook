@@ -51,11 +51,13 @@ function drawDonut(svg, data) {
  */
 function drawBars(container, data) {
   container.innerHTML = '';
-  const W = 340, H = 210;
+  const W = 360, H = 210;
+  const leftPad = 20;    // 左侧留白：Y 轴数值
   const topPad = 34;     // 顶部：图例 + 数值标签空间
   const bottomPad = 26;  // 月份标签
+  const chartW = W - leftPad - 6;
   const chartH = H - topPad - bottomPad;
-  const groupW = W / data.length;
+  const groupW = chartW / data.length;
   const maxVal = Math.max(1, ...data.flatMap((d) => [d.expense, d.income]));
   const niceMax = niceCeil(maxVal);
   const y = (v) => topPad + chartH * (1 - v / niceMax);
@@ -71,17 +73,17 @@ function drawBars(container, data) {
   el('stop', { offset: '0%', 'stop-color': '#6ee7b7' }, gInc);
   el('stop', { offset: '100%', 'stop-color': '#059669' }, gInc);
 
-  // 网格线 + Y 轴标签
+  // 网格线 + Y 轴数值（文字收在左侧留白内）
   for (let i = 0; i <= 2; i++) {
     const v = niceMax * i / 2;
     const yy = y(v);
     el('line', {
-      x1: 6, y1: yy, x2: W - 6, y2: yy,
+      x1: leftPad + 2, y1: yy, x2: W - 6, y2: yy,
       stroke: 'var(--border)', 'stroke-width': 1,
       'stroke-dasharray': i === 0 ? '0' : '3 4'
     }, svg);
     if (i > 0) {
-      const t = el('text', { x: 4, y: yy + 3, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'end' }, svg);
+      const t = el('text', { x: leftPad - 2, y: yy + 3, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'end' }, svg);
       t.textContent = compactMoney(v);
     }
   }
@@ -95,34 +97,34 @@ function drawBars(container, data) {
   // 柱子 + 数值标签 + 月份标签
   const barW = Math.min(16, groupW * 0.28);
   data.forEach((d, i) => {
-    const cx = i * groupW + groupW / 2;
+    const cx = leftPad + 2 + i * groupW + groupW / 2;
+    const hasE = d.expense > 0;
+    const hasI = d.income > 0;
 
-    if (d.expense > 0) {
+    if (hasE) {
+      // 只有一根柱子时居中于组中心，两根时在中心左侧
+      const x = hasI ? cx - barW - 1.5 : cx - barW / 2;
       const h = Math.max(chartH * d.expense / niceMax, 3);
-      el('rect', {
-        x: cx - barW - 1.5, y: y(d.expense), width: barW, height: h,
-        rx: 4, fill: 'url(#g-exp)'
-      }, svg);
+      el('rect', { x, y: y(d.expense), width: barW, height: h, rx: 4, fill: 'url(#g-exp)' }, svg);
       const t = el('text', {
-        x: cx - barW - 1.5 + barW / 2, y: y(d.expense) - 5,
+        x: x + barW / 2, y: y(d.expense) - 5,
         'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle'
       }, svg);
       t.textContent = compactMoney(d.expense);
     }
 
-    if (d.income > 0) {
+    if (hasI) {
+      const x = hasE ? cx + 1.5 : cx - barW / 2;
       const h = Math.max(chartH * d.income / niceMax, 3);
-      el('rect', {
-        x: cx + 1.5, y: y(d.income), width: barW, height: h,
-        rx: 4, fill: 'url(#g-inc)'
-      }, svg);
+      el('rect', { x, y: y(d.income), width: barW, height: h, rx: 4, fill: 'url(#g-inc)' }, svg);
       const t = el('text', {
-        x: cx + 1.5 + barW / 2, y: y(d.income) - 5,
+        x: x + barW / 2, y: y(d.income) - 5,
         'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle'
       }, svg);
       t.textContent = compactMoney(d.income);
     }
 
+    // 月份标签：柱子组中心（单柱时柱子已居中）
     const label = d.month.slice(5) + '月';
     const text = el('text', {
       x: cx, y: H - 6, 'font-size': 10, 'text-anchor': 'middle',
