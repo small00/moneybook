@@ -203,24 +203,41 @@ function renderSettings(cats) {
       const chip = document.createElement('span');
       chip.className = 'cat-chip';
       chip.innerHTML = `
+        <button class="chip-move" data-id="${c.id}" data-dir="-1" aria-label="上移">↑</button>
         <span class="cat-chip-icon">${c.icon}</span>${esc(c.name)}
-        ${c.custom ? `<button class="cat-chip-del" data-id="${c.id}" data-type="${type}" aria-label="删除${esc(c.name)}">✕</button>` : ''}`;
+        ${c.custom ? `<button class="cat-chip-del" data-id="${c.id}" data-type="${type}" aria-label="删除${esc(c.name)}">✕</button>` : ''}
+        <button class="chip-move" data-id="${c.id}" data-dir="1" aria-label="下移">↓</button>`;
       box.appendChild(chip);
     });
   }
 }
 
-/* ---------- 记账弹窗：分类九宫格 ---------- */
-function renderCatPicker(cats, type, selectedName) {
+/* ---------- 记账弹窗：分类九宫格（超过两行收起） ---------- */
+function renderCatPicker(cats, type, selectedName, expanded) {
   const box = document.getElementById('cat-picker');
   box.innerHTML = '';
-  cats.filter((c) => c.type === type).forEach((c) => {
+  const list = cats.filter((c) => c.type === type);
+  const folded = list.length > 10 && !expanded;
+
+  list.forEach((c, i) => {
     const cell = document.createElement('button');
-    cell.className = 'cat-cell' + (c.name === selectedName ? ' active' : '');
+    cell.type = 'button';
+    cell.className = 'cat-cell'
+      + (c.name === selectedName ? ' active' : '')
+      + (folded && i >= 10 ? ' cat-cell-hidden' : '');
     cell.dataset.name = c.name;
     cell.innerHTML = `<span class="cat-cell-icon">${c.icon}</span><span>${esc(c.name)}</span>`;
     box.appendChild(cell);
   });
+
+  if (list.length > 10) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'cat-more-btn' + (!folded ? ' on' : '');
+    more.innerHTML = folded ? '▼ 展开更多' : '▲ 收起';
+    more.dataset.toggle = '1';
+    box.appendChild(more);
+  }
 }
 
 /* ---------- 分类预算编辑弹窗 ---------- */

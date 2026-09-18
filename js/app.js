@@ -12,6 +12,7 @@
     addType: 'expense',  // 记账弹窗当前类型
     addCategory: '餐饮', // 记账弹窗当前分类
     addDate: todayStr(), // 记账弹窗当前日期
+    catExpanded: false,  // 记账弹窗分类是否展开
     modalYear: 0         // 月份选择弹窗当前年份
   };
 
@@ -160,9 +161,16 @@
 
     // 分类选择（事件委托）
     $('cat-picker').addEventListener('click', (e) => {
+      const more = e.target.closest('.cat-more-btn');
+      if (more) {
+        state.catExpanded = !state.catExpanded;
+        renderCatPicker(state.cats, state.addType, state.addCategory, state.catExpanded);
+        return;
+      }
       const cell = e.target.closest('.cat-cell');
       if (!cell) return;
       document.querySelectorAll('.cat-cell').forEach((c) => c.classList.remove('active'));
+      cell.classList.remove('cat-cell-hidden'); // 已展开时才可能点到隐藏项，兜底
       cell.classList.add('active');
       state.addCategory = cell.dataset.name;
     });
@@ -221,6 +229,13 @@
     $('btn-add-cat-expense').addEventListener('click', () => openCatModal('expense'));
     $('btn-add-cat-income').addEventListener('click', () => openCatModal('income'));
     $('page-settings').addEventListener('click', async (e) => {
+      const move = e.target.closest('.chip-move');
+      if (move) {
+        await moveCategory(move.dataset.id, Number(move.dataset.dir));
+        state.cats = await initCategories();
+        renderSettings(state.cats);
+        return;
+      }
       const del = e.target.closest('.cat-chip-del');
       if (del) {
         await deleteCategory(del.dataset.id, del.dataset.type);
@@ -430,8 +445,9 @@
     if (!keepCat) {
       const first = state.cats.find((c) => c.type === type);
       state.addCategory = first ? first.name : '';
+      state.catExpanded = false;
     }
-    renderCatPicker(state.cats, type, state.addCategory);
+    renderCatPicker(state.cats, type, state.addCategory, state.catExpanded);
   }
 
   async function saveTx() {
@@ -543,7 +559,7 @@
     closeCatModal();
     toast('已添加');
     renderSettings(state.cats);
-    if (state.addType === type) renderCatPicker(state.cats, type, state.addCategory);
+    if (state.addType === type) renderCatPicker(state.cats, type, state.addCategory, state.catExpanded);
   }
 
   /* ---------- 备份 ---------- */

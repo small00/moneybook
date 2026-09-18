@@ -51,7 +51,9 @@ function drawDonut(svg, data) {
  */
 function drawBars(container, data) {
   container.innerHTML = '';
-  const W = 340, H = 190, topPad = 18, bottomPad = 26;
+  const W = 340, H = 210;
+  const topPad = 34;     // 顶部：图例 + 数值标签空间
+  const bottomPad = 26;  // 月份标签
   const chartH = H - topPad - bottomPad;
   const groupW = W / data.length;
   const maxVal = Math.max(1, ...data.flatMap((d) => [d.expense, d.income]));
@@ -60,50 +62,75 @@ function drawBars(container, data) {
 
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' }, container);
 
-  // 网格线 + Y 标签
+  // 渐变定义
+  const defs = el('defs', {}, svg);
+  el('linearGradient', { id: 'g-exp', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  el('stop', { offset: '0%', 'stop-color': '#fca5a5' }, defs);
+  el('stop', { offset: '100%', 'stop-color': '#dc2626' }, defs);
+  el('linearGradient', { id: 'g-inc', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  el('stop', { offset: '0%', 'stop-color': '#6ee7b7' }, defs);
+  el('stop', { offset: '100%', 'stop-color': '#059669' }, defs);
+
+  // 网格线 + Y 轴标签
   for (let i = 0; i <= 2; i++) {
     const v = niceMax * i / 2;
     const yy = y(v);
-    el('line', { x1: 6, y1: yy, x2: W - 6, y2: yy, stroke: 'var(--border)', 'stroke-width': 1, 'stroke-dasharray': i === 0 ? '0' : '3 4' }, svg);
-    el('text', { x: 2, y: yy + 4, 'font-size': 10, fill: 'var(--muted)' }, svg).textContent = i === 0 ? '' : compactMoney(v);
+    el('line', {
+      x1: 6, y1: yy, x2: W - 6, y2: yy,
+      stroke: 'var(--border)', 'stroke-width': 1,
+      'stroke-dasharray': i === 0 ? '0' : '3 4'
+    }, svg);
+    if (i > 0) {
+      const t = el('text', { x: 4, y: yy + 3, 'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'end' }, svg);
+      t.textContent = compactMoney(v);
+    }
   }
 
-  const barW = Math.min(14, groupW * 0.26);
+  // 图例（右上角）
+  el('rect', { x: W - 112, y: 8, width: 8, height: 8, rx: 2, fill: '#dc2626' }, svg);
+  el('text', { x: W - 100, y: 16, 'font-size': 10, fill: 'var(--muted)' }, svg).textContent = '支出';
+  el('rect', { x: W - 56, y: 8, width: 8, height: 8, rx: 2, fill: '#059669' }, svg);
+  el('text', { x: W - 44, y: 16, 'font-size': 10, fill: 'var(--muted)' }, svg).textContent = '收入';
 
+  // 柱子 + 数值标签 + 月份标签
+  const barW = Math.min(16, groupW * 0.28);
   data.forEach((d, i) => {
     const cx = i * groupW + groupW / 2;
 
-    // 支出（红）
     if (d.expense > 0) {
+      const h = Math.max(chartH * d.expense / niceMax, 3);
       el('rect', {
-        x: cx - barW - 1, y: y(d.expense), width: barW, height: Math.max(chartH * d.expense / niceMax, 1),
-        rx: 3, fill: '#ef4444'
+        x: cx - barW - 1.5, y: y(d.expense), width: barW, height: h,
+        rx: 4, fill: 'url(#g-exp)'
       }, svg);
-    }
-    // 收入（绿）
-    if (d.income > 0) {
-      el('rect', {
-        x: cx + 1, y: y(d.income), width: barW, height: Math.max(chartH * d.income / niceMax, 1),
-        rx: 3, fill: '#10b981'
+      const t = el('text', {
+        x: cx - barW - 1.5 + barW / 2, y: y(d.expense) - 5,
+        'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle'
       }, svg);
+      t.textContent = compactMoney(d.expense);
     }
 
-    // 月份标签（当前月高亮）
+    if (d.income > 0) {
+      const h = Math.max(chartH * d.income / niceMax, 3);
+      el('rect', {
+        x: cx + 1.5, y: y(d.income), width: barW, height: h,
+        rx: 4, fill: 'url(#g-inc)'
+      }, svg);
+      const t = el('text', {
+        x: cx + 1.5 + barW / 2, y: y(d.income) - 5,
+        'font-size': 9, fill: 'var(--muted)', 'text-anchor': 'middle'
+      }, svg);
+      t.textContent = compactMoney(d.income);
+    }
+
     const label = d.month.slice(5) + '月';
     const text = el('text', {
-      x: cx, y: H - 8, 'font-size': 10, 'text-anchor': 'middle',
+      x: cx, y: H - 6, 'font-size': 10, 'text-anchor': 'middle',
       fill: i === data.length - 1 ? 'var(--primary)' : 'var(--muted)',
-      'font-weight': i === data.length - 1 ? 700 : 400
+      'font-weight': i === data.length - 1 ? 700 : 500
     }, svg);
     text.textContent = label;
   });
-
-  // 图例
-  const legend = el('g', { transform: `translate(0, ${topPad - 14})` }, svg);
-  el('rect', { x: 0, y: 0, width: 8, height: 8, rx: 2, fill: '#ef4444' }, legend);
-  el('text', { x: 12, y: 8, 'font-size': 10, fill: 'var(--muted)' }, legend).textContent = '支出';
-  el('rect', { x: 52, y: 0, width: 8, height: 8, rx: 2, fill: '#10b981' }, legend);
-  el('text', { x: 64, y: 8, 'font-size': 10, fill: 'var(--muted)' }, legend).textContent = '收入';
 }
 
 /* 向上取整到 1/2/5 × 10^k */

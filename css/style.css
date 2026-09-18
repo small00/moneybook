@@ -225,6 +225,14 @@ input { font-family: inherit; }
 .cat-chip .cat-chip-icon { font-size: 16px; }
 .cat-chip .cat-chip-del { color: var(--muted); font-size: 13px; padding: 2px; border-radius: 50%; }
 .cat-chip .cat-chip-del:active { color: var(--danger); }
+/* 分类排序按钮（设置页） */
+.chip-move {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13px;
+}
+.chip-move:active { background: var(--primary-soft); color: var(--primary); }
+.cat-chip .cat-chip-del { margin-left: 2px; }
 .add-cat-btn {
   width: 100%; padding: 10px; border-radius: 12px;
   border: 1px dashed var(--border); color: var(--primary);
@@ -348,6 +356,15 @@ input { font-family: inherit; }
 .cat-cell:active { background: var(--primary-soft); }
 .cat-cell.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .cat-cell.active .cat-cell-icon { transform: scale(1.12); }
+.cat-cell-hidden { display: none !important; }
+/* 展开/收起按钮 */
+.cat-more-btn {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px 2px; border-radius: 12px;
+  font-size: 12px; color: var(--muted);
+}
+.cat-more-btn:active { background: var(--primary-soft); }
+.cat-more-btn.on { color: var(--primary); font-weight: 600; }
 
 .form-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .form-label { width: 48px; font-size: 15px; color: var(--muted); flex-shrink: 0; }

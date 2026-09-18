@@ -112,6 +112,26 @@ async function deleteCategory(catId, type) {
   await DB.del('categories', catId);
 }
 
+/* 分类排序：与同类型的相邻分类交换 sort */
+async function moveCategory(catId, dir) {
+  const cats = await initCategories();
+  const idx = cats.findIndex((c) => c.id === catId);
+  if (idx < 0) return;
+  const type = cats[idx].type;
+  let target = idx + dir;
+  while (target >= 0 && target < cats.length && cats[target].type !== type) {
+    target += dir;
+  }
+  if (target < 0 || target >= cats.length || cats[target].type !== type) return;
+  const a = cats[idx];
+  const b = cats[target];
+  const tmp = a.sort;
+  a.sort = b.sort;
+  b.sort = tmp;
+  await DB.put('categories', a);
+  await DB.put('categories', b);
+}
+
 function getCategoryIcon(list, type, name) {
   const c = list.find((x) => x.type === type && x.name === name);
   return c ? c.icon : '📦';
