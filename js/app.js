@@ -447,6 +447,10 @@
     const amount = t ? String(t.amount) : '';
 
     state.addCategory = cat;  // 编辑时同步选中分类，避免保存时被旧值覆盖
+    // 选中分类在折叠区（两行以外）时自动展开，保证用户能看到选中状态
+    const catList = state.cats.filter((c) => c.type === type);
+    const catIdx = catList.findIndex((c) => c.name === cat);
+    if (catIdx >= 10) state.catExpanded = true;
     setAddType(type, cat);
     $('input-amount').value = amount;
     $('input-note').value = note;
