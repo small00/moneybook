@@ -48,6 +48,8 @@
 }
 #cat-detail-list .tx-item { box-shadow: none; background: var(--bg); margin-bottom: 6px; }
 #cat-detail-list .tx-day-head { font-size: 12px; }
+/* 分类明细弹窗：内容多时限制高度，内部滚动 */
+#modal-cat-detail .sheet { max-height: 72vh; }
 
 /* ===== 滚动条美化（桌面浏览器 Chrome/Edge/Safari） ===== */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

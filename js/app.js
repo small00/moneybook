@@ -46,6 +46,7 @@
     updateHeader();
     registerSW();
     setupChromeOffset();
+    setupSheetDrag();
   }
 
   /* iOS 键盘/Safari 工具栏补偿：
@@ -766,6 +767,74 @@
         localStorage.setItem('mbCloudLast', new Date().toISOString());
       } catch (e) { /* 静默失败，下次记账再试 */ }
     }, 4000);
+  }
+
+  /* ---------- 弹窗下拉关闭手势（iOS 原生 sheet 行为） ----------
+   * 内容滚到顶部后继续下拉，弹窗跟随手指移动，松手超过阈值关闭，否则回弹 */
+  const MODAL_CLOSE_MAP = {
+    'modal-add': closeAddModal,
+    'modal-tx': closeTxModal,
+    'modal-budget': closeBudgetModal,
+    'modal-cat': closeCatModal,
+    'modal-month': closeMonthModal,
+    'modal-date': closeDateModal,
+    'modal-cat-detail': closeCatDetail
+  };
+
+  function setupSheetDrag() {
+    document.querySelectorAll('.sheet').forEach((sheet) => {
+      const mask = sheet.closest('.sheet-mask');
+      if (!mask) return;
+      let startY = 0;
+      let dragging = false;
+      let follow = false;
+
+      sheet.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+        dragging = true;
+        follow = false;
+      }, { passive: true });
+
+      sheet.addEventListener('touchmove', (e) => {
+        if (!dragging) return;
+        const dy = e.touches[0].clientY - startY;
+        // 内容滚到顶 且 向下拉 → 启动下拉关闭
+        if (sheet.scrollTop <= 0 && dy > 0) {
+          if (!follow) {
+            follow = true;
+            sheet.style.transition = 'none';
+          }
+          e.preventDefault();
+          const y = Math.min(dy * 0.5, 300);
+          sheet.style.transform = `translateY(${y}px)`;
+          mask.style.background = `rgba(0,0,0,${Math.max(0.45 - y / 900, 0.05)})`;
+        }
+      }, { passive: false });
+
+      sheet.addEventListener('touchend', (e) => {
+        if (!dragging) return;
+        dragging = false;
+        if (!follow) return;
+        const dy = (e.changedTouches[0].clientY - startY) * 0.5;
+        const closeFn = MODAL_CLOSE_MAP[mask.id];
+        if (dy > 80) {
+          sheet.style.transition = 'transform .22s ease';
+          sheet.style.transform = 'translateY(110%)';
+          mask.style.background = 'rgba(0,0,0,0)';
+          setTimeout(() => {
+            if (closeFn) closeFn();
+            sheet.style.transform = '';
+            sheet.style.transition = '';
+            mask.style.background = '';
+          }, 200);
+        } else {
+          sheet.style.transition = 'transform .25s ease';
+          sheet.style.transform = '';
+          sheet.style.transition = '';
+          mask.style.background = '';
+        }
+      }, { passive: true });
+    });
   }
 
   /* ---------- Service Worker ---------- */
