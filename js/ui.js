@@ -131,13 +131,61 @@ function renderStats(cats, txs, month, statType) {
   rows.forEach((r, i) => {
     const row = document.createElement('div');
     row.className = 'rank-row';
+    row.dataset.cat = r.name;
     row.innerHTML = `
       <div class="rank-icon">${getCategoryIcon(cats, statType, r.name)}</div>
       <div class="rank-name">${esc(r.name)}</div>
       <div class="rank-bar"><div class="rank-bar-fill" style="width:${(r.amount / maxAmount * 100).toFixed(1)}%;background:${PALETTE[i % PALETTE.length]}"></div></div>
       <div class="rank-val">${fmtMoneyNoCur(r.amount)}</div>`;
+    row.style.cursor = 'pointer';
     rank.appendChild(row);
   });
+}
+
+/* ---------- 分类明细（统计页点击分类查看当月账目） ---------- */
+function renderCatDetail(cats, txs, month, type, category) {
+  const rows = txs.filter((t) => monthStr(t.date) === month && t.type === type && t.category === category)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  const icon = getCategoryIcon(cats, type, category);
+  const total = round2(rows.reduce((s, t) => s + t.amount, 0));
+
+  document.getElementById('cat-detail-title').textContent = `${icon} ${category} · ${fmtMonth(month)}`;
+  document.getElementById('cat-detail-sum').textContent = `${rows.length} 笔 · 合计 ${fmtMoney(total)}`;
+
+  const list = document.getElementById('cat-detail-list');
+  list.innerHTML = '';
+  if (!rows.length) return;
+
+  const byDay = new Map();
+  for (const t of rows) {
+    if (!byDay.has(t.date)) byDay.set(t.date, []);
+    byDay.get(t.date).push(t);
+  }
+  for (const day of [...byDay.keys()].sort((a, b) => b.localeCompare(a))) {
+    const items = byDay.get(day);
+    const ds = daySummary(txs, day);
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'tx-day';
+    const head = document.createElement('div');
+    head.className = 'tx-day-head';
+    head.innerHTML = `<span>${esc(fmtDayLabel(day))}</span>
+      <span class="tx-day-sum">${ds.expense ? `<span class="expense">-${fmtMoneyNoCur(ds.expense)}</span>` : ''}${ds.income ? `<span class="income">+${fmtMoneyNoCur(ds.income)}</span>` : ''}</span>`;
+    dayDiv.appendChild(head);
+    for (const t of items) {
+      const item = document.createElement('div');
+      item.className = 'tx-item';
+      item.dataset.id = t.id;
+      item.innerHTML = `
+        <div class="tx-icon">${icon}</div>
+        <div class="tx-info">
+          <div class="tx-cat">${esc(t.type === 'expense' ? '支出' : '收入')}${t.note ? ` · ${esc(t.note)}` : ''}</div>
+          <div class="tx-note">${esc(t.date)}</div>
+        </div>
+        <div class="tx-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoneyNoCur(t.amount)}</div>`;
+      dayDiv.appendChild(item);
+    }
+    list.appendChild(dayDiv);
+  }
 }
 
 /* ---------- 预算页 ---------- */

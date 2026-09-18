@@ -13,6 +13,7 @@
     addCategory: '餐饮', // 记账弹窗当前分类
     addDate: todayStr(), // 记账弹窗当前日期
     catExpanded: false,  // 记账弹窗分类是否展开
+    catDetail: null,     // 统计页正在查看的分类明细 {type, category}
     modalYear: 0         // 月份选择弹窗当前年份
   };
 
@@ -72,7 +73,12 @@
   async function refresh() {
     state.txs = await getAllTx();
     if (state.page === 'ledger') renderLedger(state.cats, state.txs, state.month);
-    else if (state.page === 'stats') renderStats(state.cats, state.txs, state.month, state.statType);
+    else if (state.page === 'stats') {
+      renderStats(state.cats, state.txs, state.month, state.statType);
+      if (state.catDetail) {
+        renderCatDetail(state.cats, state.txs, state.month, state.catDetail.type, state.catDetail.category);
+      }
+    }
     else if (state.page === 'budget') renderBudget(state.cats, state.txs, state.month);
     else renderSettings(state.cats);
   }
@@ -266,9 +272,24 @@
     $('stat-type-expense').addEventListener('click', () => setStatType('expense'));
     $('stat-type-income').addEventListener('click', () => setStatType('income'));
 
+    // 分类排行 → 查看该分类当月明细
+    $('rank-list').addEventListener('click', (e) => {
+      const row = e.target.closest('.rank-row');
+      if (!row) return;
+      openCatDetail(row.dataset.cat);
+    });
+    // 分类明细弹窗内条目 → 编辑/删除
+    $('cat-detail-list').addEventListener('click', (e) => {
+      const item = e.target.closest('.tx-item');
+      if (!item) return;
+      openTxModal(item.dataset.id);
+    });
+    $('btn-close-cat-detail').addEventListener('click', closeCatDetail);
+    $('modal-cat-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCatDetail(); });
+
     // 键盘 Enter 保存
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeAddModal(); closeTxModal(); closeBudgetModal(); closeCatModal(); closeMonthModal(); closeDateModal(); }
+      if (e.key === 'Escape') { closeAddModal(); closeTxModal(); closeBudgetModal(); closeCatModal(); closeMonthModal(); closeDateModal(); closeCatDetail(); }
     });
   }
 
@@ -411,6 +432,8 @@
 
   /* ---------- 记账弹窗 ---------- */
   function openAddModal(id) {
+    // 若分类明细弹窗开着，记账弹窗显示在其上层
+    if (!$('modal-cat-detail').hidden) $('modal-add').style.zIndex = '120';
     state.editingId = id || null;
     $('add-title').textContent = id ? '编辑记录' : '记一笔';
 
@@ -423,6 +446,7 @@
     const note = t ? t.note : '';
     const amount = t ? String(t.amount) : '';
 
+    state.addCategory = cat;  // 编辑时同步选中分类，避免保存时被旧值覆盖
     setAddType(type, cat);
     $('input-amount').value = amount;
     $('input-note').value = note;
@@ -478,6 +502,7 @@
 
   /* ---------- 流水操作弹窗 ---------- */
   function openTxModal(id) {
+    if (!$('modal-cat-detail').hidden) $('modal-tx').style.zIndex = '120';
     $('modal-tx').dataset.id = id;
     $('modal-tx').hidden = false;
   }
@@ -522,6 +547,18 @@
     $('stat-type-expense').classList.toggle('active', type === 'expense');
     $('stat-type-income').classList.toggle('active', type === 'income');
     renderStats(state.cats, state.txs, state.month, type);
+  }
+
+  /* ---------- 分类明细弹窗 ---------- */
+  function openCatDetail(category) {
+    state.catDetail = { type: state.statType, category };
+    renderCatDetail(state.cats, state.txs, state.month, state.catDetail.type, state.catDetail.category);
+    $('modal-cat-detail').hidden = false;
+  }
+
+  function closeCatDetail() {
+    $('modal-cat-detail').hidden = true;
+    state.catDetail = null;
   }
 
   /* ---------- 分类管理弹窗 ---------- */

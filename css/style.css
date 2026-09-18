@@ -38,6 +38,17 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* ===== 分类明细弹窗（统计页点击分类） ===== */
+.cat-detail-sum {
+  font-size: 13px; color: var(--muted);
+  padding: 8px 4px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#cat-detail-list .tx-item { box-shadow: none; background: var(--bg); margin-bottom: 6px; }
+#cat-detail-list .tx-day-head { font-size: 12px; }
+
 /* ===== 滚动条美化（桌面浏览器 Chrome/Edge/Safari） ===== */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
