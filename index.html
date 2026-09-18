@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="记账本">
+<meta name="theme-color" content="#10b981">
+<title>记账本</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶部 -->
+  <header id="app-header">
+    <div id="header-title">明细</div>
+    <div id="month-switch" class="month-switch">
+      <button id="month-prev" class="icon-btn" aria-label="上个月">‹</button>
+      <span id="month-label">—</span>
+      <button id="month-next" class="icon-btn" aria-label="下个月">›</button>
+      <button id="month-today" class="text-btn">本月</button>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ===== 明细页 ===== -->
+    <section id="page-ledger" class="page">
+      <div class="summary-card card">
+        <div class="summary-row">
+          <div class="summary-item">
+            <div class="summary-label">本月支出</div>
+            <div class="summary-value expense" id="sum-expense">¥0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">本月收入</div>
+            <div class="summary-value income" id="sum-income">¥0.00</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">结余</div>
+            <div class="summary-value" id="sum-balance">¥0.00</div>
+          </div>
+        </div>
+        <div class="budget-mini" id="budget-mini" hidden>
+          <div class="budget-mini-text"><span>预算</span><span id="budget-mini-progress">—</span></div>
+          <div class="progress"><div class="progress-fill" id="budget-mini-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="tx-list" class="tx-list"></div>
+      <div id="tx-empty" class="empty hidden">
+        <div class="empty-icon">💸</div>
+        <p>这个月还没有记录</p>
+        <p class="empty-sub">点右下角 + 记一笔</p>
+      </div>
+    </section>
+
+    <!-- ===== 统计页 ===== -->
+    <section id="page-stats" class="page hidden">
+      <div class="stat-toggle card">
+        <button id="stat-type-expense" class="stat-type-btn active">支出</button>
+        <button id="stat-type-income" class="stat-type-btn">收入</button>
+      </div>
+
+      <div class="card donut-card">
+        <div class="donut-wrap">
+          <svg id="donut-chart" viewBox="0 0 200 200" role="img" aria-label="分类占比图"></svg>
+          <div class="donut-center">
+            <div class="donut-total-label">合计</div>
+            <div class="donut-total" id="donut-total">¥0.00</div>
+          </div>
+        </div>
+        <div id="donut-legend" class="donut-legend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">近 6 个月收支</div>
+        <div id="bar-chart-wrap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">分类排行</div>
+        <div id="rank-list" class="rank-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== 预算页 ===== -->
+    <section id="page-budget" class="page hidden">
+      <div class="card budget-total-card" id="budget-total-card">
+        <div class="budget-head">
+          <div>
+            <div class="budget-label">本月总预算</div>
+            <div class="budget-amount" id="budget-total-amount">未设置</div>
+          </div>
+          <button id="btn-edit-total-budget" class="text-btn">设置</button>
+        </div>
+        <div class="budget-used" id="budget-total-used">已支出 ¥0.00</div>
+        <div class="progress lg"><div class="progress-fill" id="budget-total-fill"></div></div>
+        <div class="budget-remain" id="budget-total-remain"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row">
+          <span class="card-title">分类预算</span>
+          <button id="btn-add-cat-budget" class="text-btn">添加</button>
+        </div>
+        <div id="cat-budget-list"></div>
+        <div id="cat-budget-empty" class="empty small hidden">
+          <p>未设置分类预算</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 设置页 ===== -->
+    <section id="page-settings" class="page hidden">
+      <div class="card">
+        <div class="card-title">支出分类</div>
+        <div id="cat-list-expense" class="cat-mgr-list"></div>
+        <button id="btn-add-cat-expense" class="add-cat-btn">＋ 添加分类</button>
+      </div>
+      <div class="card">
+        <div class="card-title">收入分类</div>
+        <div id="cat-list-income" class="cat-mgr-list"></div>
+        <button id="btn-add-cat-income" class="add-cat-btn">＋ 添加分类</button>
+      </div>
+      <div class="card">
+        <div class="card-title">数据备份</div>
+        <p class="settings-desc">数据保存在本机浏览器中，清除浏览器数据会丢失。建议定期备份到文件。</p>
+        <div class="btn-row">
+          <button id="btn-export" class="btn secondary">导出备份</button>
+          <button id="btn-import" class="btn secondary">导入备份</button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div class="card about-card">
+        <div class="about-line">记账本 v1.0</div>
+        <div class="about-line muted">纯本地应用 · 无广告 · 无云同步 · 数据只在你手机里</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部导航 -->
+  <nav id="tabbar">
+    <button class="tab-btn active" data-page="ledger">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" fill="currentColor"/></svg>
+      <span>明细</span>
+    </button>
+    <button class="tab-btn" data-page="stats">
+      <svg viewBox="0 0 24 24"><path d="M5 20V10h3v10H5zm5.5 0V4h3v16h-3zM16 20v-7h3v7h-3z" fill="currentColor"/></svg>
+      <span>统计</span>
+    </button>
+    <button class="tab-btn" data-page="budget">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-1.1a4 4 0 0 1-2.8-2h2.3a1.8 1.8 0 0 0 3.5 0c0-1-.6-1.5-3-2-2.6-.6-4-1.6-4-3.9a3.6 3.6 0 0 1 2.8-3.5V4h2v1.2a3.4 3.4 0 0 1 2.3 1.8h-2.2a1.7 1.7 0 0 0-3.4 0c0 1 .7 1.5 3 2 2.7.6 4 1.7 4 4a3.7 3.7 0 0 1-3 3.6V17z" fill="currentColor"/></svg>
+      <span>预算</span>
+    </button>
+    <button class="tab-btn" data-page="settings">
+      <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L16.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.06-.4.1-.8.1-1.2z" fill="currentColor"/></svg>
+      <span>设置</span>
+    </button>
+  </nav>
+
+  <!-- 悬浮记账按钮 -->
+  <button id="fab" aria-label="记一笔">＋</button>
+
+  <!-- 记账弹窗（底部抽屉） -->
+  <div id="modal-add" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="记一笔">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title" id="add-title">记一笔</span>
+        <button class="icon-btn" id="btn-close-add" aria-label="关闭">✕</button>
+      </div>
+
+      <div class="type-switch">
+        <button id="type-expense" class="type-btn active">支出</button>
+        <button id="type-income" class="type-btn">收入</button>
+      </div>
+
+      <div class="amount-row">
+        <span class="amount-cur">¥</span>
+        <input id="input-amount" class="amount-input" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      </div>
+
+      <div id="cat-picker" class="cat-picker"></div>
+
+      <div class="form-row">
+        <span class="form-label">备注</span>
+        <input id="input-note" type="text" maxlength="50" placeholder="选填" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <span class="form-label">日期</span>
+        <button id="btn-date" class="date-value" type="button">今天</button>
+      </div>
+
+      <div class="sheet-footer">
+        <button id="btn-save" class="btn primary big">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 流水操作弹窗 -->
+  <div id="modal-tx" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="操作">
+      <div class="sheet-grabber"></div>
+      <button class="sheet-action danger" id="btn-tx-delete">删除这条记录</button>
+      <button class="sheet-action" id="btn-tx-edit">编辑</button>
+      <button class="sheet-action cancel" id="btn-tx-close">取消</button>
+    </div>
+  </div>
+
+  <!-- 预算设置弹窗 -->
+  <div id="modal-budget" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="设置预算">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title" id="budget-modal-title">设置预算</span>
+        <button class="icon-btn" id="btn-close-budget" aria-label="关闭">✕</button>
+      </div>
+      <div id="budget-modal-body"></div>
+      <div class="sheet-footer">
+        <button id="btn-save-budget" class="btn primary big">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加分类弹窗 -->
+  <div id="modal-cat" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="添加分类">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title" id="cat-modal-title">添加分类</span>
+        <button class="icon-btn" id="btn-close-cat" aria-label="关闭">✕</button>
+      </div>
+      <input type="hidden" id="cat-modal-type" value="expense">
+      <div class="form-row" style="border:none">
+        <span class="form-label">名称</span>
+        <input id="input-cat-name" type="text" maxlength="6" placeholder="分类名称" autocomplete="off">
+      </div>
+      <div class="cat-emoji-label">选择图标</div>
+      <div id="cat-emoji-picker" class="cat-emoji-picker"></div>
+      <button id="btn-cat-save" class="btn primary big">添加</button>
+    </div>
+  </div>
+
+  <!-- 月份选择弹窗 -->
+  <div id="modal-month" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="选择月份">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">选择月份</span>
+        <button class="icon-btn" id="btn-close-month" aria-label="关闭">✕</button>
+      </div>
+      <div class="year-row">
+        <button class="icon-btn" id="month-year-prev" aria-label="上一年">‹</button>
+        <span id="month-year-label">—</span>
+        <button class="icon-btn" id="month-year-next" aria-label="下一年">›</button>
+      </div>
+      <div id="month-grid" class="month-grid"></div>
+      <button id="btn-month-today" class="btn secondary big">回到本月</button>
+    </div>
+  </div>
+
+  <!-- 日期选择弹窗 -->
+  <div id="modal-date" class="sheet-mask" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="选择日期">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-head">
+        <span class="sheet-title">选择日期</span>
+        <button class="icon-btn" id="btn-close-date" aria-label="关闭">✕</button>
+      </div>
+      <div class="wheel-picker">
+        <div class="wheel" id="wheel-year" aria-label="年"></div>
+        <div class="wheel" id="wheel-month" aria-label="月"></div>
+        <div class="wheel" id="wheel-day" aria-label="日"></div>
+      </div>
+      <div class="btn-row date-btn-row">
+        <button id="btn-date-cancel" class="btn secondary" type="button">取消</button>
+        <button id="btn-date-ok" class="btn primary" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/store.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
