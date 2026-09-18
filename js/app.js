@@ -81,6 +81,7 @@
     }
     else if (state.page === 'budget') renderBudget(state.cats, state.txs, state.month);
     else renderSettings(state.cats);
+    renderCloudStatus();
   }
 
   function updateHeader() {
@@ -207,6 +208,7 @@
       await deleteTx(id);
       closeTxModal();
       toast('已删除');
+      scheduleAutoBackup();
       refresh();
     });
     $('btn-tx-edit').addEventListener('click', () => {
@@ -256,6 +258,14 @@
     $('btn-export').addEventListener('click', doExport);
     $('btn-import').addEventListener('click', () => $('import-file').click());
     $('import-file').addEventListener('change', doImport);
+
+    // 设置：云备份（GitHub）
+    $('btn-cloud-backup').addEventListener('click', cloudBackup);
+    $('btn-cloud-restore').addEventListener('click', cloudRestore);
+    $('cloud-auto').addEventListener('change', () => {
+      localStorage.setItem('mbCloudAuto', $('cloud-auto').checked ? '1' : '0');
+      toast($('cloud-auto').checked ? '已开启自动备份' : '已关闭自动备份');
+    });
 
     // 分类添加弹窗
     $('btn-cat-save').addEventListener('click', saveNewCategory);
@@ -501,6 +511,7 @@
       toast('已记一笔');
     }
     closeAddModal();
+    scheduleAutoBackup();
     refresh();
   }
 
@@ -629,10 +640,132 @@
       state.cats = await initCategories();
       state.txs = await getAllTx();
       toast('备份已导入');
+      scheduleAutoBackup();
       refresh();
     } catch (err) {
       toast('导入失败：文件格式不正确');
     }
+  }
+
+  /* ---------- GitHub 云备份 ---------- */
+  const CLOUD_FILE = 'moneybook-backup.json';
+
+  function strToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  }
+  function base64ToStr(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  async function cloudRequest(path, method, token, body) {
+    const opts = {
+      method,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    };
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch('https://api.github.com' + path, opts);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const j = await res.json(); msg = j.message || msg; } catch (e) { /* ignore */ }
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  function getCloudCfg() {
+    return {
+      token: (document.getElementById('cloud-token').value || localStorage.getItem('mbCloudToken') || '').trim(),
+      repo: (document.getElementById('cloud-repo').value || localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup').trim(),
+      auto: document.getElementById('cloud-auto').checked
+    };
+  }
+
+  function renderCloudStatus() {
+    const t = document.getElementById('cloud-token');
+    const r = document.getElementById('cloud-repo');
+    const a = document.getElementById('cloud-auto');
+    if (t && !t.value) t.value = localStorage.getItem('mbCloudToken') || '';
+    if (r && !r.value) r.value = localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup';
+    if (a) a.checked = localStorage.getItem('mbCloudAuto') === '1';
+    const el = document.getElementById('cloud-status');
+    if (!el) return;
+    const last = localStorage.getItem('mbCloudLast');
+    el.className = 'settings-desc';
+    el.textContent = last ? '上次备份：' + new Date(last).toLocaleString('zh-CN') : '还没有备份过，点「立即备份」开始。';
+  }
+
+  async function cloudBackup() {
+    const cfg = getCloudCfg();
+    if (!cfg.token) { toast('请先填写 GitHub Token'); return; }
+    localStorage.setItem('mbCloudToken', cfg.token);
+    localStorage.setItem('mbCloudRepo', cfg.repo);
+    localStorage.setItem('mbCloudAuto', cfg.auto ? '1' : '0');
+    try {
+      const data = await exportBackup();
+      const content = strToBase64(JSON.stringify(data));
+      const existing = await cloudRequest('/repos/' + cfg.repo + '/contents/' + CLOUD_FILE, 'GET', cfg.token);
+      const body = { message: 'backup ' + new Date().toLocaleString('zh-CN'), content };
+      if (existing && existing.sha) body.sha = existing.sha;
+      await cloudRequest('/repos/' + cfg.repo + '/contents/' + CLOUD_FILE, 'PUT', cfg.token, body);
+      localStorage.setItem('mbCloudLast', new Date().toISOString());
+      toast('云端备份成功');
+      renderCloudStatus();
+    } catch (err) {
+      toast('备份失败：' + err.message);
+    }
+  }
+
+  async function cloudRestore() {
+    const cfg = getCloudCfg();
+    if (!cfg.token) { toast('请先填写 GitHub Token'); return; }
+    if (!window.confirm('从云端恢复会用备份覆盖当前所有数据，确定继续？')) return;
+    try {
+      const existing = await cloudRequest('/repos/' + cfg.repo + '/contents/' + CLOUD_FILE, 'GET', cfg.token);
+      if (!existing) { toast('云端还没有备份'); return; }
+      const data = JSON.parse(base64ToStr(existing.content));
+      await importBackup(data);
+      state.cats = await initCategories();
+      state.txs = await getAllTx();
+      toast('已从云端恢复');
+      refresh();
+    } catch (err) {
+      toast('恢复失败：' + err.message);
+    }
+  }
+
+  /* 自动备份：开启后每次记账/修改/删除后防抖 4 秒静默备份 */
+  let _autoBackupTimer = null;
+  function scheduleAutoBackup() {
+    if (localStorage.getItem('mbCloudAuto') !== '1') return;
+    if (!localStorage.getItem('mbCloudToken')) return;
+    clearTimeout(_autoBackupTimer);
+    _autoBackupTimer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('mbCloudToken');
+        const repo = localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup';
+        const data = await exportBackup();
+        const content = strToBase64(JSON.stringify(data));
+        const existing = await cloudRequest('/repos/' + repo + '/contents/' + CLOUD_FILE, 'GET', token);
+        const body = { message: 'auto backup', content };
+        if (existing && existing.sha) body.sha = existing.sha;
+        await cloudRequest('/repos/' + repo + '/contents/' + CLOUD_FILE, 'PUT', token, body);
+        localStorage.setItem('mbCloudLast', new Date().toISOString());
+      } catch (e) { /* 静默失败，下次记账再试 */ }
+    }, 4000);
   }
 
   /* ---------- Service Worker ---------- */

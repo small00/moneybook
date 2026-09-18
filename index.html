@@ -138,6 +138,27 @@
           <input type="file" id="import-file" accept=".json,application/json" hidden>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-title">云备份（GitHub）</div>
+        <p class="settings-desc">把账本备份到你自己的 GitHub <b>私有</b> 仓库，换手机、清缓存都能恢复。Token 只保存在本机，不会上传。</p>
+        <div class="form-row" style="border:none">
+          <span class="form-label">Token</span>
+          <input id="cloud-token" type="password" placeholder="GitHub 访问令牌" autocomplete="off">
+        </div>
+        <div class="form-row" style="border:none">
+          <span class="form-label">仓库</span>
+          <input id="cloud-repo" type="text" placeholder="用户名/仓库名" autocomplete="off" value="small00/moneybook-backup">
+        </div>
+        <label class="cloud-auto">
+          <input type="checkbox" id="cloud-auto"> 记账后自动备份
+        </label>
+        <div class="btn-row">
+          <button id="btn-cloud-backup" class="btn secondary">立即备份</button>
+          <button id="btn-cloud-restore" class="btn secondary">从云端恢复</button>
+        </div>
+        <div id="cloud-status" class="settings-desc"></div>
+      </div>
       <div class="card about-card">
         <div class="about-line">记账本 v1.1.0</div>
         <div class="about-line muted">纯本地应用 · 无广告 · 无云同步 · 数据只在你手机里</div>

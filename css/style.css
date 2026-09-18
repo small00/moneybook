@@ -252,6 +252,14 @@ input { font-family: inherit; }
 .add-cat-btn:active { background: var(--primary-soft); }
 
 .settings-desc { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.6; }
+.cloud-auto {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; padding: 4px 0 12px; color: var(--text);
+}
+.cloud-auto input { width: 18px; height: 18px; accent-color: var(--primary); }
+#cloud-status { margin-top: 10px; margin-bottom: 0; }
+#cloud-status.ok { color: var(--income); }
+#cloud-status.err { color: var(--danger); }
 .btn-row { display: flex; gap: 10px; }
 .btn-row .btn { flex: 1; }
 
