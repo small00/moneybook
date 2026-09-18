@@ -37,8 +37,10 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
+  // 绕过浏览器 HTTP 缓存（GitHub Pages 会给静态文件加缓存），
+  // 每次打开都向服务器重新验证，保证代码更新立即生效
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res && res.ok) {
           const copy = res.clone();
