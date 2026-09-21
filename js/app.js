@@ -790,6 +790,13 @@
       let follow = false;
 
       sheet.addEventListener('touchstart', (e) => {
+        // 触摸点位于可滚动的子元素内（如日期滚轮）时，禁用下拉关闭手势，
+        // 避免滚动滚轮/子区域被误判为下拉
+        let t = e.target;
+        while (t && t !== sheet) {
+          if (t.scrollHeight > t.clientHeight + 1) return;
+          t = t.parentElement;
+        }
         startY = e.touches[0].clientY;
         dragging = true;
         follow = false;
