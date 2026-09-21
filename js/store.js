@@ -202,6 +202,16 @@ async function deleteCategoryBudget(month, category) {
   await DB.del('budgets', 'cat:' + month + ':' + category);
 }
 
+/* ---------- 应用配置（存 IndexedDB，随数据同生命周期） ---------- */
+async function getSetting(key) {
+  const row = await DB.get('settings', key);
+  return row ? row.value : null;
+}
+
+async function setSetting(key, value) {
+  await DB.put('settings', { key, value });
+}
+
 /* ---------- 统计 ---------- */
 function monthSummary(txs, month) {
   let expense = 0, income = 0;

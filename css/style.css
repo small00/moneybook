@@ -367,6 +367,26 @@ input { font-family: inherit; }
 }
 .amount-input::placeholder { color: var(--border); }
 
+/* ===== 内置金额键盘 ===== */
+.numpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 16px; }
+.np-key {
+  height: 48px; border-radius: 12px;
+  background: var(--bg); font-size: 20px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  font-variant-numeric: tabular-nums;
+  transition: background .1s ease, transform .1s ease;
+}
+.np-key:active { background: var(--primary-soft); transform: scale(.96); }
+.np-fn { color: var(--primary); font-size: 22px; }
+.np-save {
+  grid-column: 1 / -1; height: 50px; border-radius: 14px;
+  background: linear-gradient(135deg, #34d399, var(--primary-dark));
+  color: #fff; font-size: 17px; font-weight: 700; letter-spacing: 4px;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, .3);
+  transition: transform .1s ease, opacity .1s ease;
+}
+.np-save:active { transform: scale(.98); opacity: .9; }
+
 .cat-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 6px; margin-bottom: 18px; }
 .cat-cell {
   display: flex; flex-direction: column; align-items: center; gap: 4px;

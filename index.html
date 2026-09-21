@@ -205,7 +205,7 @@
 
       <div class="amount-row">
         <span class="amount-cur">¥</span>
-        <input id="input-amount" class="amount-input" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        <input id="input-amount" class="amount-input" type="text" inputmode="none" readonly placeholder="0.00" autocomplete="off">
       </div>
 
       <div id="cat-picker" class="cat-picker"></div>
@@ -219,8 +219,21 @@
         <button id="btn-date" class="date-value" type="button">今天</button>
       </div>
 
-      <div class="sheet-footer">
-        <button id="btn-save" class="btn primary big">保存</button>
+      <!-- 内置金额键盘 -->
+      <div class="numpad" id="numpad">
+        <button class="np-key" type="button" data-k="1">1</button>
+        <button class="np-key" type="button" data-k="2">2</button>
+        <button class="np-key" type="button" data-k="3">3</button>
+        <button class="np-key np-fn" type="button" data-k="del">⌫</button>
+        <button class="np-key" type="button" data-k="4">4</button>
+        <button class="np-key" type="button" data-k="5">5</button>
+        <button class="np-key" type="button" data-k="6">6</button>
+        <button class="np-key np-fn" type="button" data-k=".">.</button>
+        <button class="np-key" type="button" data-k="7">7</button>
+        <button class="np-key" type="button" data-k="8">8</button>
+        <button class="np-key" type="button" data-k="9">9</button>
+        <button class="np-key np-fn" type="button" data-k="0">0</button>
+        <button class="np-save" id="btn-np-save" type="button">保 存</button>
       </div>
     </div>
   </div>

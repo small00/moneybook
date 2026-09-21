@@ -14,7 +14,8 @@
     addDate: todayStr(), // 记账弹窗当前日期
     catExpanded: false,  // 记账弹窗分类是否展开
     catDetail: null,     // 统计页正在查看的分类明细 {type, category}
-    modalYear: 0         // 月份选择弹窗当前年份
+    modalYear: 0,        // 月份选择弹窗当前年份
+    cloud: { token: '', repo: 'small00/moneybook-backup', auto: false, last: null }
   };
 
   const $ = (id) => document.getElementById(id);
@@ -41,6 +42,23 @@
     state.txs = await getAllTx();
     state.addCategory = state.cats.find((c) => c.type === 'expense' && c.name === '餐饮')
       ? '餐饮' : state.cats.find((c) => c.type === 'expense').name;
+
+    // 加载云配置（IndexedDB）；旧版 localStorage 里的配置迁移过来
+    const saved = await getSetting('cloud');
+    if (saved) state.cloud = Object.assign(state.cloud, saved);
+    const legacyToken = localStorage.getItem('mbCloudToken');
+    const legacyRepo = localStorage.getItem('mbCloudRepo');
+    const legacyAuto = localStorage.getItem('mbCloudAuto');
+    const legacyLast = localStorage.getItem('mbCloudLast');
+    if (legacyToken || legacyRepo || legacyAuto || legacyLast) {
+      if (legacyToken && !state.cloud.token) state.cloud.token = legacyToken;
+      if (legacyRepo && !saved) state.cloud.repo = legacyRepo;
+      if (legacyAuto && !saved) state.cloud.auto = legacyAuto === '1';
+      if (legacyLast && !state.cloud.last) state.cloud.last = legacyLast;
+      await saveCloudCfg();
+      ['mbCloudToken', 'mbCloudRepo', 'mbCloudAuto', 'mbCloudLast'].forEach((k) => localStorage.removeItem(k));
+    }
+
     bindEvents();
     switchPage('ledger');
     updateHeader();
@@ -183,19 +201,12 @@
       state.addCategory = cell.dataset.name;
     });
 
-    // 金额输入过滤
-    $('input-amount').addEventListener('input', (e) => {
-      let v = e.target.value.replace(/[^\d.]/g, '');
-      const dot = v.indexOf('.');
-      if (dot !== -1) {
-        v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '');
-        if (v.slice(dot + 1).length > 2) v = v.slice(0, dot + 3);
-      }
-      e.target.value = v;
+    // 内置金额键盘
+    $('numpad').addEventListener('click', (e) => {
+      const key = e.target.closest('.np-key');
+      if (key) { npInput(key.dataset.k); return; }
+      if (e.target.closest('#btn-np-save')) saveTx();
     });
-
-    // 保存
-    $('btn-save').addEventListener('click', saveTx);
 
     // 流水操作
     $('tx-list').addEventListener('click', (e) => {
@@ -263,9 +274,10 @@
     // 设置：云备份（GitHub）
     $('btn-cloud-backup').addEventListener('click', cloudBackup);
     $('btn-cloud-restore').addEventListener('click', cloudRestore);
-    $('cloud-auto').addEventListener('change', () => {
-      localStorage.setItem('mbCloudAuto', $('cloud-auto').checked ? '1' : '0');
-      toast($('cloud-auto').checked ? '已开启自动备份' : '已关闭自动备份');
+    $('cloud-auto').addEventListener('change', async () => {
+      state.cloud.auto = $('cloud-auto').checked;
+      await saveCloudCfg();
+      toast(state.cloud.auto ? '已开启自动备份' : '已关闭自动备份');
     });
 
     // 分类添加弹窗
@@ -342,6 +354,27 @@
       btn.textContent = m + '月';
       grid.appendChild(btn);
     }
+  }
+
+  /* ---------- 内置金额键盘 ---------- */
+  function npInput(key) {
+    const input = $('input-amount');
+    let v = input.value;
+    if (key === 'del') {
+      v = v.slice(0, -1);
+    } else if (key === '.') {
+      if (!v.includes('.')) v = (v === '' ? '0' : v) + '.';
+    } else {
+      if (v.includes('.')) {
+        if (v.split('.')[1].length >= 2) return;   // 小数最多两位
+        v += key;
+      } else {
+        if (v === '0') v = key;                    // 避免 05
+        else if (v.replace('.', '').length >= 8) return; // 最多 8 位整数
+        else v += key;
+      }
+    }
+    input.value = v;
   }
 
   /* ---------- 日期选择弹窗（三列滚轮） ---------- */
@@ -469,7 +502,6 @@
     $('btn-date').textContent = fmtDateCN(state.addDate);
 
     $('modal-add').hidden = false;
-    setTimeout(() => $('input-amount').focus(), 220);
   }
 
   function closeAddModal() {
@@ -689,22 +721,27 @@
 
   function getCloudCfg() {
     return {
-      token: (document.getElementById('cloud-token').value || localStorage.getItem('mbCloudToken') || '').trim(),
-      repo: (document.getElementById('cloud-repo').value || localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup').trim(),
+      token: (document.getElementById('cloud-token').value || state.cloud.token || '').trim(),
+      repo: (document.getElementById('cloud-repo').value || state.cloud.repo || 'small00/moneybook-backup').trim(),
       auto: document.getElementById('cloud-auto').checked
     };
+  }
+
+  /* 云配置写入 IndexedDB（与记账数据同库，浏览器清数据/换机只要恢复数据即一并恢复） */
+  async function saveCloudCfg() {
+    await setSetting('cloud', state.cloud);
   }
 
   function renderCloudStatus() {
     const t = document.getElementById('cloud-token');
     const r = document.getElementById('cloud-repo');
     const a = document.getElementById('cloud-auto');
-    if (t && !t.value) t.value = localStorage.getItem('mbCloudToken') || '';
-    if (r && !r.value) r.value = localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup';
-    if (a) a.checked = localStorage.getItem('mbCloudAuto') === '1';
+    if (t && !t.value) t.value = state.cloud.token || '';
+    if (r && !r.value) r.value = state.cloud.repo || 'small00/moneybook-backup';
+    if (a) a.checked = !!state.cloud.auto;
     const el = document.getElementById('cloud-status');
     if (!el) return;
-    const last = localStorage.getItem('mbCloudLast');
+    const last = state.cloud.last;
     el.className = 'settings-desc';
     el.textContent = last ? '上次备份：' + new Date(last).toLocaleString('zh-CN') : '还没有备份过，点「立即备份」开始。';
   }
@@ -712,9 +749,10 @@
   async function cloudBackup() {
     const cfg = getCloudCfg();
     if (!cfg.token) { toast('请先填写 GitHub Token'); return; }
-    localStorage.setItem('mbCloudToken', cfg.token);
-    localStorage.setItem('mbCloudRepo', cfg.repo);
-    localStorage.setItem('mbCloudAuto', cfg.auto ? '1' : '0');
+    state.cloud.token = cfg.token;
+    state.cloud.repo = cfg.repo;
+    state.cloud.auto = cfg.auto;
+    await saveCloudCfg();
     try {
       const data = await exportBackup();
       const content = strToBase64(JSON.stringify(data));
@@ -722,7 +760,8 @@
       const body = { message: 'backup ' + new Date().toLocaleString('zh-CN'), content };
       if (existing && existing.sha) body.sha = existing.sha;
       await cloudRequest('/repos/' + cfg.repo + '/contents/' + CLOUD_FILE, 'PUT', cfg.token, body);
-      localStorage.setItem('mbCloudLast', new Date().toISOString());
+      state.cloud.last = new Date().toISOString();
+      await saveCloudCfg();
       toast('云端备份成功');
       renderCloudStatus();
     } catch (err) {
@@ -751,20 +790,20 @@
   /* 自动备份：开启后每次记账/修改/删除后防抖 4 秒静默备份 */
   let _autoBackupTimer = null;
   function scheduleAutoBackup() {
-    if (localStorage.getItem('mbCloudAuto') !== '1') return;
-    if (!localStorage.getItem('mbCloudToken')) return;
+    if (!state.cloud.auto || !state.cloud.token) return;
     clearTimeout(_autoBackupTimer);
     _autoBackupTimer = setTimeout(async () => {
       try {
-        const token = localStorage.getItem('mbCloudToken');
-        const repo = localStorage.getItem('mbCloudRepo') || 'small00/moneybook-backup';
+        const token = state.cloud.token;
+        const repo = state.cloud.repo || 'small00/moneybook-backup';
         const data = await exportBackup();
         const content = strToBase64(JSON.stringify(data));
         const existing = await cloudRequest('/repos/' + repo + '/contents/' + CLOUD_FILE, 'GET', token);
         const body = { message: 'auto backup', content };
         if (existing && existing.sha) body.sha = existing.sha;
         await cloudRequest('/repos/' + repo + '/contents/' + CLOUD_FILE, 'PUT', token, body);
-        localStorage.setItem('mbCloudLast', new Date().toISOString());
+        state.cloud.last = new Date().toISOString();
+        await saveCloudCfg();
       } catch (e) { /* 静默失败，下次记账再试 */ }
     }, 4000);
   }

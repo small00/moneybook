@@ -1,7 +1,7 @@
 /* ===== IndexedDB 轻封装 ===== */
 const DB_NAME = 'moneybook';
-const DB_VERSION = 1;
-const STORES = ['transactions', 'budgets', 'categories'];
+const DB_VERSION = 2;
+const STORES = ['transactions', 'budgets', 'categories', 'settings'];
 
 let _dbPromise = null;
 
@@ -13,7 +13,7 @@ function openDB() {
       const db = e.target.result;
       for (const name of STORES) {
         if (!db.objectStoreNames.contains(name)) {
-          db.createObjectStore(name, { keyPath: 'id' });
+          db.createObjectStore(name, { keyPath: name === 'settings' ? 'key' : 'id' });
         }
       }
       const txStore = req.transaction.objectStore('transactions');
@@ -21,7 +21,11 @@ function openDB() {
         txStore.createIndex('date', 'date');
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // 其他标签页请求升级版本时，本连接自动关闭让路，避免 onblocked 死等
+      req.result.onversionchange = () => req.result.close();
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
   });
   return _dbPromise;
