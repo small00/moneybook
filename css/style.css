@@ -428,8 +428,9 @@ input { font-family: inherit; }
 .cat-cell-hidden { display: none !important; }
 /* 展开/收起按钮 */
 .cat-more-btn {
+  grid-column: 1 / -1;   /* 跨满整行，否则被挤在一格里把文字折成两行 */
   display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 8px 2px; border-radius: 12px;
+  padding: 6px 2px; border-radius: 12px; white-space: nowrap;
   font-size: 12px; color: var(--muted);
 }
 .cat-more-btn:active { background: var(--primary-soft); }
@@ -444,16 +445,8 @@ input { font-family: inherit; }
 }
 .form-row input[type="date"] { -webkit-appearance: none; appearance: none; }
 
-/* 日期行（记账弹窗）：今天/昨天/前天 快捷 chip + 自定义日期按钮 */
+/* 日期行（记账弹窗）：始终显示完整年月日，点它弹出滚轮选择 */
 .date-row { gap: 8px; }
-.date-quick { display: flex; gap: 6px; flex: 0 0 auto; }
-.date-chip {
-  padding: 6px 10px; border-radius: 999px; font-size: 13px; font-weight: 500;
-  background: var(--bg); color: var(--muted);
-  transition: all .12s ease;
-}
-.date-chip:active { background: var(--border); }
-.date-chip.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
 
 /* 日期显示按钮（记账弹窗） */
 .date-value {
@@ -582,30 +575,28 @@ input { font-family: inherit; }
 #month-label { cursor: pointer; }
 #month-label:active { color: var(--primary); }
 
-/* ===== 日期选择弹窗（滚轮） ===== */
+/* ===== 日期选择弹窗（三列滚轮） =====
+   .wheel-col 是「外框」：背景、圆角、选中条、上下渐隐都挂在它身上 —— 它不滚动，
+   所以这些装饰不会跟着内容跑；.wheel 只负责滚动，背景透明。 */
 .wheel-picker { display: flex; gap: 12px; padding: 14px 0 6px; justify-content: center; }
+.wheel-col {
+  position: relative; flex: 1; max-width: 120px; height: 176px;
+  border-radius: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
 .wheel {
-  flex: 1; max-width: 120px; height: 176px;
+  height: 100%;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  border-radius: 16px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  position: relative;
   touch-action: pan-y;
   overscroll-behavior: contain;
 }
 .wheel::-webkit-scrollbar { display: none; }
-/* 上下渐隐遮罩 */
-.wheel::before, .wheel::after {
-  content: ''; position: absolute; left: 0; right: 0; height: 42px;
-  pointer-events: none; z-index: 2;
-}
-.wheel::before { top: 0; background: linear-gradient(to bottom, var(--bg) 20%, transparent); }
-.wheel::after { bottom: 0; background: linear-gradient(to top, var(--bg) 20%, transparent); }
-/* 中间选中条 */
+/* 中间选中条（在滚动容器之外，固定不动） */
 .wheel-indicator {
   position: absolute; left: 6px; right: 6px; top: 50%;
   height: 44px; transform: translateY(-50%);
@@ -613,7 +604,15 @@ input { font-family: inherit; }
   background: var(--primary-soft);
   pointer-events: none; z-index: 1;
 }
+/* 上下渐隐：让边缘的字淡出，而不是被硬生生裁断 */
+.wheel-col::before, .wheel-col::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 44px;
+  pointer-events: none; z-index: 3;
+}
+.wheel-col::before { top: 0; background: linear-gradient(to bottom, var(--bg) 25%, transparent); }
+.wheel-col::after { bottom: 0; background: linear-gradient(to top, var(--bg) 25%, transparent); }
 .wheel-item {
+  position: relative; z-index: 2;
   height: 44px; line-height: 44px; text-align: center;
   font-size: 16px; color: var(--muted);
   scroll-snap-align: center;

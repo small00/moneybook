@@ -252,14 +252,6 @@
     });
     $('btn-date-cancel').addEventListener('click', closeDateModal);
 
-    // 日期快捷：今天 / 昨天 / 前天
-    $('date-quick').addEventListener('click', (e) => {
-      const chip = e.target.closest('.date-chip');
-      if (!chip) return;
-      state.addDate = offsetDateStr(Number(chip.dataset.off));
-      updateDateQuick();
-    });
-
     // 备注：回车即收起系统键盘
     $('input-note').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); $('input-note').blur(); }
@@ -535,34 +527,16 @@
     updateAmountDisplay();
   }
 
-  /* 键盘右侧的「今天」 */
+  /* 键盘右侧的「今天」：一键把日期拨回今天 */
   function npToday() {
     state.addDate = todayStr();
     updateDateQuick();
   }
 
-  /* ---------- 日期工具（今天 / 昨天 / 前天 快捷） ---------- */
-  function offsetDateStr(off) {
-    const [y, m, d] = todayStr().split('-').map(Number);
-    const dt = new Date(y, m - 1, d + off);
-    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
-  }
-
-  /* a - b 相差的天数（入参均为 YYYY-MM-DD） */
-  function dayDiff(a, b) {
-    const [y1, m1, d1] = a.split('-').map(Number);
-    const [y2, m2, d2] = b.split('-').map(Number);
-    return Math.round((new Date(y1, m1 - 1, d1) - new Date(y2, m2 - 1, d2)) / 86400000);
-  }
-
-  /* 同步记账弹窗日期区：高亮 今天/昨天/前天，并把按钮文本压成短日期 */
+  /* 同步记账弹窗的日期显示：始终是完整年月日
+     （好几天才记一次账时，看具体日期比「今天/昨天」清楚得多） */
   function updateDateQuick() {
-    const diff = dayDiff(state.addDate, todayStr());
-    document.querySelectorAll('#date-quick .date-chip').forEach((chip) => {
-      chip.classList.toggle('on', Number(chip.dataset.off) === diff);
-    });
-    const names = { 0: '今天', '-1': '昨天', '-2': '前天' };
-    $('btn-date').textContent = names[String(diff)] || fmtDateCN(state.addDate);
+    $('btn-date').textContent = fmtDateCN(state.addDate);
   }
 
   /* ---------- 日期选择弹窗（三列滚轮） ---------- */
@@ -577,9 +551,10 @@
     $('modal-date').hidden = true;
   }
 
-  /* 重建一列滚轮，并滚到选中项（首尾留白保证所有项都能滚到中间） */
+  /* 重建一列滚轮，并滚到选中项（首尾留白保证所有项都能滚到中间）
+     选中条 / 渐隐遮罩由外层 .wheel-col 负责，这里只填选项 */
   function buildWheel(wheelEl, items, selectedValue) {
-    wheelEl.innerHTML = '<div class="wheel-indicator"></div>';
+    wheelEl.innerHTML = '';
     const padTop = document.createElement('div');
     padTop.className = 'wheel-spacer';
     wheelEl.appendChild(padTop);

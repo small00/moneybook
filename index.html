@@ -231,10 +231,6 @@
 
         <div class="form-row compact date-row">
           <span class="form-label">日期</span>
-          <div class="date-quick" id="date-quick">
-            <button class="date-chip" type="button" data-off="-1">昨天</button>
-            <button class="date-chip" type="button" data-off="-2">前天</button>
-          </div>
           <button id="btn-date" class="date-value" type="button">今天</button>
         </div>
       </div>
@@ -348,10 +344,21 @@
         <span class="sheet-title">选择日期</span>
         <button class="icon-btn" id="btn-close-date" aria-label="关闭">✕</button>
       </div>
+      <!-- 三列滚轮：装饰层（选中条 wheel-indicator、上下渐隐 ::before/::after）放在
+           不滚动的 .wheel-col 上，否则它们会跟着内容滚走 -->
       <div class="wheel-picker">
-        <div class="wheel" id="wheel-year" aria-label="年"></div>
-        <div class="wheel" id="wheel-month" aria-label="月"></div>
-        <div class="wheel" id="wheel-day" aria-label="日"></div>
+        <div class="wheel-col">
+          <div class="wheel-indicator"></div>
+          <div class="wheel" id="wheel-year" aria-label="年"></div>
+        </div>
+        <div class="wheel-col">
+          <div class="wheel-indicator"></div>
+          <div class="wheel" id="wheel-month" aria-label="月"></div>
+        </div>
+        <div class="wheel-col">
+          <div class="wheel-indicator"></div>
+          <div class="wheel" id="wheel-day" aria-label="日"></div>
+        </div>
       </div>
       <div class="btn-row date-btn-row">
         <button id="btn-date-cancel" class="btn secondary" type="button">取消</button>
