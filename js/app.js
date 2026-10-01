@@ -236,7 +236,12 @@
     });
 
     // 日期选择弹窗（记账弹窗内点日期弹出，滚轮选择）
-    $('btn-date').addEventListener('click', openDateModal);
+    // 日期行整行都能点开滚轮（不必非点右边那个箭头）；
+    // 但点在具体某个日期上时不算 —— 那是直接选那天
+    $('date-row').addEventListener('click', (e) => {
+      if (e.target.closest('.date-chip')) return;
+      openDateModal();
+    });
     $('btn-close-date').addEventListener('click', closeDateModal);
     $('modal-date').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDateModal(); });
     watchWheel($('wheel-year'), rebuildDayWheel);
