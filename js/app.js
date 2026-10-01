@@ -305,29 +305,9 @@
       if (key) npInput(key.dataset.k);
     });
 
-    // 流水操作
-    $('tx-list').addEventListener('click', (e) => {
-      const item = e.target.closest('.tx-item');
-      if (!item) return;
-      openTxModal(item.dataset.id);
-    });
-    $('btn-tx-delete').addEventListener('click', async () => {
-      const id = $('modal-tx').dataset.id;
-      if (!id) return;
-      await deleteTx(id);
-      closeTxModal();
-      toast('已删除');
-      scheduleAutoBackup();
-      invalidate();
-      refresh();
-    });
-    $('btn-tx-edit').addEventListener('click', () => {
-      const id = $('modal-tx').dataset.id;
-      closeTxModal();
-      openAddModal(id);
-    });
-    $('btn-tx-close').addEventListener('click', closeTxModal);
-    $('modal-tx').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTxModal(); });
+    // 流水行操作：点一下直接进编辑，左滑露出删除（委托到 document，明细页与分类明细共用）
+    document.addEventListener('click', onTxRowClick);
+    setupTxSwipe();
 
     // 预算
     $('btn-edit-total-budget').addEventListener('click', () => openBudgetModal('total'));
@@ -402,12 +382,6 @@
       if (!row) return;
       openCatDetail(row.dataset.cat);
     });
-    // 分类明细弹窗内条目 → 编辑/删除
-    $('cat-detail-list').addEventListener('click', (e) => {
-      const item = e.target.closest('.tx-item');
-      if (!item) return;
-      openTxModal(item.dataset.id);
-    });
     $('btn-close-cat-detail').addEventListener('click', closeCatDetail);
     $('modal-cat-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCatDetail(); });
 
@@ -416,7 +390,7 @@
 
     // 键盘 Enter 保存
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeAddModal(); closeTxModal(); closeBudgetModal(); closeCatModal(); closeMonthModal(); closeDateModal(); closeCatDetail(); }
+      if (e.key === 'Escape') { closeAddModal(); closeBudgetModal(); closeCatModal(); closeMonthModal(); closeDateModal(); closeCatDetail(); }
     });
   }
 
@@ -759,15 +733,102 @@
     refresh();
   }
 
-  /* ---------- 流水操作弹窗 ---------- */
-  function openTxModal(id) {
-    if (!$('modal-cat-detail').hidden) $('modal-tx').style.zIndex = '120';
-    $('modal-tx').dataset.id = id;
-    $('modal-tx').hidden = false;
+  /* ---------- 流水行：点一下进编辑 / 左滑删除 ---------- */
+  const SWIPE_W = 76;
+  let swallowRowClick = false;
+
+  function closeAllSwipes(except) {
+    document.querySelectorAll('.tx-row.open').forEach((r) => {
+      if (r !== except) r.classList.remove('open');
+    });
   }
-  function closeTxModal() {
-    $('modal-tx').hidden = true;
-    delete $('modal-tx').dataset.id;
+
+  function onTxRowClick(e) {
+    // 左滑露出后的「删除」优先，不受滑动吞点击影响
+    const del = e.target.closest('.tx-del');
+    if (del) {
+      swallowRowClick = false;
+      deleteTxRow(del.closest('.tx-row'));
+      return;
+    }
+    if (swallowRowClick) { swallowRowClick = false; return; }
+    const row = e.target.closest('.tx-row');
+    if (!row) { closeAllSwipes(); return; }
+    // 有行处于滑动展开状态时，这一次点击只用来收起（iOS 惯例）
+    if (document.querySelector('.tx-row.open')) { closeAllSwipes(); return; }
+    openAddModal(row.dataset.id);
+  }
+
+  async function deleteTxRow(row) {
+    if (!row) return;
+    const id = row.dataset.id;
+    if (!id) return;
+    await deleteTx(id);
+    toast('已删除');
+    scheduleAutoBackup();
+    invalidate();
+    refresh();
+  }
+
+  function setupTxSwipe() {
+    let row = null;
+    let item = null;
+    let startX = 0;
+    let startY = 0;
+    let base = 0;
+    let axis = null;
+
+    const clear = () => {
+      if (item) item.style.transform = '';
+      if (row) row.classList.remove('dragging');
+      row = null; item = null; axis = null;
+    };
+
+    document.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.target.closest('.tx-del')) return;
+      const r = e.target.closest('.tx-row');
+      if (!r) return;
+      row = r;
+      item = r.querySelector('.tx-item');
+      startX = e.clientX;
+      startY = e.clientY;
+      base = r.classList.contains('open') ? -SWIPE_W : 0;
+      axis = null;
+    }, { passive: true });
+
+    document.addEventListener('pointermove', (e) => {
+      if (!row) return;
+      const mx = e.clientX - startX;
+      const my = e.clientY - startY;
+      if (!axis) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+        if (axis === 'y') { row = null; item = null; return; }   // 纵向滚动交给浏览器
+        row.classList.add('dragging');
+        closeAllSwipes(row);
+      }
+      const t = Math.max(-SWIPE_W, Math.min(0, base + mx));
+      item.style.transform = `translateX(${t}px)`;
+    });
+
+    document.addEventListener('pointerup', (e) => {
+      if (!row || axis !== 'x') { clear(); return; }
+      const r = row;
+      const el = item;
+      const shouldOpen = base + (e.clientX - startX) < -SWIPE_W / 2;
+      // 先定目标态再清 inline 位移，避免回弹后再滑出的抖动
+      closeAllSwipes(r);
+      if (shouldOpen) r.classList.add('open'); else r.classList.remove('open');
+      r.classList.remove('dragging');
+      el.style.transform = '';
+      row = null; item = null; axis = null;
+      // 吞掉紧随其后的合成 click，避免刚滑开就被收起
+      swallowRowClick = true;
+      setTimeout(() => { swallowRowClick = false; }, 350);
+    });
+
+    document.addEventListener('pointercancel', clear);
   }
 
   /* ---------- 预算弹窗 ---------- */
@@ -1027,7 +1088,6 @@
    * 内容滚到顶部后继续下拉，弹窗跟随手指移动，松手超过阈值关闭，否则回弹 */
   const MODAL_CLOSE_MAP = {
     'modal-add': closeAddModal,
-    'modal-tx': closeTxModal,
     'modal-budget': closeBudgetModal,
     'modal-cat': closeCatModal,
     'modal-month': closeMonthModal,

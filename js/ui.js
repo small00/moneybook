@@ -113,17 +113,20 @@ function renderLedger(cats, txs, month, search, limit) {
 
     for (const t of items) {
       const icon = getCategoryIcon(cats, t.type, t.category);
-      const item = document.createElement('div');
-      item.className = 'tx-item';
-      item.dataset.id = t.id;
-      item.innerHTML = `
-        <div class="tx-icon">${icon}</div>
-        <div class="tx-info">
-          <div class="tx-cat">${esc(t.category)}</div>
-          ${t.note ? `<div class="tx-note">${esc(t.note)}</div>` : ''}
-        </div>
-        <div class="tx-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoneyNoCur(t.amount)}</div>`;
-      dayDiv.appendChild(item);
+      const row = document.createElement('div');
+      row.className = 'tx-row';
+      row.dataset.id = t.id;
+      row.innerHTML = `
+        <button class="tx-del" type="button">删除</button>
+        <div class="tx-item">
+          <div class="tx-icon">${icon}</div>
+          <div class="tx-info">
+            <div class="tx-cat">${esc(t.category)}</div>
+            ${t.note ? `<div class="tx-note">${esc(t.note)}</div>` : ''}
+          </div>
+          <div class="tx-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoneyNoCur(t.amount)}</div>
+        </div>`;
+      dayDiv.appendChild(row);
     }
     list.appendChild(dayDiv);
   }
@@ -218,17 +221,20 @@ function renderCatDetail(cats, txs, month, type, category) {
       <span class="tx-day-sum">${ds.expense ? `<span class="expense">-${fmtMoneyNoCur(ds.expense)}</span>` : ''}${ds.income ? `<span class="income">+${fmtMoneyNoCur(ds.income)}</span>` : ''}</span>`;
     dayDiv.appendChild(head);
     for (const t of items) {
-      const item = document.createElement('div');
-      item.className = 'tx-item';
-      item.dataset.id = t.id;
-      item.innerHTML = `
-        <div class="tx-icon">${icon}</div>
-        <div class="tx-info">
-          <div class="tx-cat">${esc(t.type === 'expense' ? '支出' : '收入')}${t.note ? ` · ${esc(t.note)}` : ''}</div>
-          <div class="tx-note">${esc(t.date)}</div>
-        </div>
-        <div class="tx-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoneyNoCur(t.amount)}</div>`;
-      dayDiv.appendChild(item);
+      const row = document.createElement('div');
+      row.className = 'tx-row';
+      row.dataset.id = t.id;
+      row.innerHTML = `
+        <button class="tx-del" type="button">删除</button>
+        <div class="tx-item">
+          <div class="tx-icon">${icon}</div>
+          <div class="tx-info">
+            <div class="tx-cat">${esc(t.type === 'expense' ? '支出' : '收入')}${t.note ? ` · ${esc(t.note)}` : ''}</div>
+            <div class="tx-note">${esc(t.date)}</div>
+          </div>
+          <div class="tx-amount ${t.type}">${t.type === 'expense' ? '-' : '+'}${fmtMoneyNoCur(t.amount)}</div>
+        </div>`;
+      dayDiv.appendChild(row);
     }
     list.appendChild(dayDiv);
   }

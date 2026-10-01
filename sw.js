@@ -5,7 +5,7 @@
  * 每次启动都等一轮网络是首屏卡顿的主要原因。
  * 新版本装好后页面会收到通知并显示顶部提示条，用户可一键立即更新。
  */
-const CACHE = 'moneybook-v1.2.3';
+const CACHE = 'moneybook-v1.2.4';
 const ASSETS = [
   './',
   './index.html',

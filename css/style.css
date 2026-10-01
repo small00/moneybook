@@ -46,7 +46,8 @@
   margin-bottom: 12px;
   font-variant-numeric: tabular-nums;
 }
-#cat-detail-list .tx-item { box-shadow: none; background: var(--bg); margin-bottom: 6px; }
+#cat-detail-list .tx-row { margin-bottom: 6px; }
+#cat-detail-list .tx-item { box-shadow: none; background: var(--bg); }
 #cat-detail-list .tx-day-head { font-size: 12px; }
 /* 分类明细弹窗：内容多时限制高度，内部滚动 */
 #modal-cat-detail .sheet { max-height: 72vh; }
@@ -144,13 +145,31 @@ input { font-family: inherit; }
   padding: 6px 4px;
 }
 .tx-day-sum { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 行容器：承载左滑露出的删除层（圆角与裁剪都在这一层） */
+.tx-row {
+  position: relative; overflow: hidden;
+  border-radius: 14px; margin-bottom: 8px;
+  background: var(--danger);
+}
+.tx-row .tx-del {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 76px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; padding: 0; cursor: pointer;
+  background: var(--danger); color: #fff;
+  font-size: 14px; font-weight: 600; letter-spacing: 1px;
+}
 .tx-item {
+  position: relative; z-index: 1;
   display: flex; align-items: center; gap: 12px;
   background: var(--card); border-radius: 14px;
-  padding: 12px 14px; margin-bottom: 8px;
+  padding: 12px 14px;
   box-shadow: var(--shadow);
-  transition: transform .1s ease;
+  transition: transform .2s cubic-bezier(.22, .61, .36, 1);
+  touch-action: pan-y;
 }
+.tx-row.open .tx-item { transform: translateX(-76px); }
+.tx-row.dragging .tx-item { transition: none; }
+.tx-row.dragging .tx-item:active { transform: none; }
 .tx-item:active { transform: scale(0.985); }
 .tx-icon {
   width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
@@ -361,15 +380,6 @@ input { font-family: inherit; }
 .sheet-grabber { width: 40px; height: 4px; border-radius: 999px; background: var(--border); margin: 4px auto 12px; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .sheet-title { font-size: 18px; font-weight: 700; }
-
-.sheet-action {
-  width: 100%; padding: 14px; border-radius: 14px;
-  font-size: 16px; font-weight: 600; margin-bottom: 8px;
-  background: var(--bg);
-}
-.sheet-action:active { background: var(--border); }
-.sheet-action.danger { color: var(--danger); }
-.sheet-action.cancel { color: var(--muted); font-weight: 500; }
 
 /* ===== 记账表单 ===== */
 .type-switch {
