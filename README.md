@@ -39,7 +39,7 @@ node server.js 8080
 
 直接双击打开 `index.html` 也能用（Chrome/Edge），但 PWA 安装和离线功能需要走 HTTP 服务器。
 
-## 安装到 iPhone（关键步骤）
+## 方案一：部署到 HTTPS 地址（GitHub Pages 等）
 
 > iPhone 的 Safari 是唯一支持"添加到主屏幕"的浏览器。整个过程不需要 Mac、不需要开发者账号、不需要 App Store。
 
@@ -51,6 +51,39 @@ node server.js 8080
 2. **打开网址**：iPhone 上 Safari 打开部署后的地址
 3. **添加到主屏幕**：点 Safari 底部"分享"按钮 → 滚到底部选"添加到主屏幕" → 确认名称"记账本"
 4. 之后从主屏幕点图标打开，就是全屏 App 体验（顶部不再有 Safari 地址栏），**首次打开联网缓存后，离线也能记账**
+
+## 方案二：家里电脑当服务器（不依赖任何云）
+
+> 适合「不想把代码放在任何托管平台、想 100% 自己掌控」的场景。
+> **日常记账完全不依赖电脑** —— App 已经缓存在手机里，出门断网照样记；只有「首次安装」和「版本更新」需要电脑开着。
+
+### 电脑上（一次性）
+
+1. 装 [mkcert](https://github.com/FiloSottile/mkcert/releases) 并生成证书（证书放在仓库外，绝不提交）：
+
+   ```bash
+   mkcert -install
+   mkcert -cert-file ..\moneybook-certs\cert.pem -key-file ..\moneybook-certs\key.pem 192.168.1.3 localhost 127.0.0.1
+   copy "%LOCALAPPDATA%\mkcert\rootCA.pem" ..\moneybook-certs\rootCA.pem
+   ```
+
+   （`192.168.1.3` 换成电脑的局域网 IP，用 `ipconfig` 查；证书里可以写多个 IP）
+
+2. 双击 `启动服务器.bat` —— 窗口里会打印手机要用的地址和下面的步骤
+3. **把电源计划改成「从不休眠」**，否则电脑睡着时手机连不上
+4. 想让开机自动跑：Win+R 输入 `shell:startup`，把 `启动服务器.bat` 的快捷方式丢进去
+
+### 手机上（一次性）
+
+1. iPhone Safari 打开 `http://<电脑IP>:8080/rootCA.crt` → 弹出「正尝试下载配置描述文件」→ 允许
+2. 设置 → 通用 → VPN与设备管理 → 安装刚才的 **mkcert** 描述文件
+3. 设置 → 通用 → 关于本机 → 证书信任设置 → 打开 **mkcert** 那一项
+4. Safari 打开 `https://<电脑IP>:8443/` → 分享 → 添加到主屏幕
+
+> ⚠️ **为什么非要装证书**：iPhone 只在 HTTPS 下允许 Service Worker。走普通 HTTP 的话，App 打不开离线缓存，出门没网就没法记账。
+> ⚠️ **IP 会变**：换 Wi-Fi、路由器重启后 IP 可能变，以服务器窗口里显示的地址为准（路由器里给电脑绑定静态 IP 最省心）。
+> ⚠️ **两个地址 = 两份数据**：`小00.github.io` 和本地地址属于不同来源，IndexedDB 不互通。换过去时用「云备份 → 从云端恢复」或「导出/导入备份」搬一次数据。
+
 
 ## 数据说明
 
