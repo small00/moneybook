@@ -445,20 +445,35 @@ input { font-family: inherit; }
 }
 .form-row input[type="date"] { -webkit-appearance: none; appearance: none; }
 
-/* 日期行（记账弹窗）：始终显示完整年月日，点它弹出滚轮选择 */
+/* 日期行（记账弹窗）：左边前几天、右边今天，点哪个就记哪天；点 › 开滚轮选更早的 */
 .date-row { gap: 8px; }
-
-/* 日期显示按钮（记账弹窗） */
-.date-value {
-  flex: 1 1 auto; text-align: right; font-size: 15px; color: var(--text);
-  background: none; padding: 6px 22px 6px 4px; border-radius: 8px;
-  position: relative; font-variant-numeric: tabular-nums; white-space: nowrap;
+.date-chips {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 5px;
+  overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
-.date-value::after {
-  content: '›'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  color: var(--muted); font-size: 18px;
+.date-chips::-webkit-scrollbar { display: none; }
+.date-chip {
+  flex: 0 0 auto;
+  padding: 4px 8px; border-radius: 9px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  transition: all .12s ease;
 }
-.date-value:active { color: var(--primary); }
+.date-chip:active { transform: scale(.94); }
+.date-chip.on {
+  background: var(--primary-soft); border-color: transparent;
+  color: var(--primary); font-weight: 700;
+}
+/* 右侧的「选其他日期」箭头 */
+.date-more {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 18px; line-height: 1;
+}
+.date-more:active { background: var(--primary-soft); color: var(--primary); }
 
 /* ===== 按钮 ===== */
 .btn {

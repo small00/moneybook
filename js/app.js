@@ -252,6 +252,14 @@
     });
     $('btn-date-cancel').addEventListener('click', closeDateModal);
 
+    // 日期快捷条：点哪个 chip 就记哪天（前几天在左、今天在右）
+    $('date-chips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.date-chip');
+      if (!chip) return;
+      state.addDate = chip.dataset.date;
+      updateDateQuick();
+    });
+
     // 备注：回车即收起系统键盘
     $('input-note').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); $('input-note').blur(); }
@@ -533,10 +541,29 @@
     updateDateQuick();
   }
 
-  /* 同步记账弹窗的日期显示：始终是完整年月日
-     （好几天才记一次账时，看具体日期比「今天/昨天」清楚得多） */
+  /* 日期加减天数：shiftDate('2026-10-01', -2) → '2026-09-29' */
+  function shiftDate(dateStr, delta) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + delta);
+    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+  }
+
+  /* 渲染日期快捷条：左边是前几天、右边是今天，点哪个就记哪天。
+     若用滚轮选了不在最近 3 天里的日期，把它补进条里并高亮，
+     免得看不出当前到底选的是哪一天 */
   function updateDateQuick() {
-    $('btn-date').textContent = fmtDateCN(state.addDate);
+    const today = todayStr();
+    const days = [2, 1, 0].map((i) => shiftDate(today, -i));   // 前天 · 昨天 · 今天
+    if (!days.includes(state.addDate)) {
+      if (state.addDate > today) days.push(state.addDate);
+      else days.unshift(state.addDate);
+    }
+    $('date-chips').innerHTML = days.map((d) => {
+      // 今天那个既标「今天」也写明几月几号 —— 光写「今天」看不出是几号
+      const label = d === today ? `今天 ${fmtMonthDay(d)}` : fmtMonthDay(d);
+      const on = d === state.addDate ? ' on' : '';
+      return `<button type="button" class="date-chip${on}" data-date="${d}">${label}</button>`;
+    }).join('');
   }
 
   /* ---------- 日期选择弹窗（三列滚轮） ---------- */

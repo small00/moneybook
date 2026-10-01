@@ -71,6 +71,12 @@ function fmtDateCN(dateStr) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+/* 短日期：2026-09-30 → 9月30日（记账弹窗的日期快捷条用） */
+function fmtMonthDay(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 /* ---------- 分类 ---------- */
 async function initCategories() {
   const list = await DB.getAll('categories');
