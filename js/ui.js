@@ -18,55 +18,92 @@ function budgetStatus(used, budget) {
 }
 
 /* ---------- 明细页 ---------- */
-function renderLedger(cats, txs, month) {
-  const sum = monthSummary(txs, month);
-  document.getElementById('sum-expense').textContent = fmtMoney(sum.expense);
-  document.getElementById('sum-income').textContent = fmtMoney(sum.income);
-  document.getElementById('sum-balance').textContent = fmtMoney(sum.balance);
-  document.getElementById('sum-balance').style.color = sum.balance < 0 ? 'var(--danger)' : '';
+/* search 非空 → 搜索模式：跨全部月份匹配备注/分类/金额，按日期倒序；
+   limit 用于长列表分段渲染（超出的部分给「显示更多」按钮） */
+function renderLedger(cats, txs, month, search, limit) {
+  const kw = (search || '').trim().toLowerCase();
+  const searching = kw.length > 0;
+  const searchInfo = document.getElementById('search-info');
+  const summaryCard = document.getElementById('summary-card');
 
-  // 迷你预算条
-  const budgetEl = document.getElementById('budget-mini');
-  getTotalBudget(month).then((b) => {
-    if (b && b.amount > 0) {
-      budgetEl.hidden = false;
-      const st = budgetStatus(sum.expense, b.amount);
-      document.getElementById('budget-mini-progress').textContent = `${Math.round(st.pct * 100)}% · ${fmtMoney(b.amount)}`;
-      const fill = document.getElementById('budget-mini-fill');
-      fill.style.width = `${st.pct * 100}%`;
-      fill.className = 'progress-fill' + (st.cls ? ' ' + st.cls : '');
-    } else {
-      budgetEl.hidden = true;
-    }
-  });
+  let listTxs;
+  if (searching) {
+    listTxs = txs.filter((t) => {
+      if ((t.note || '').toLowerCase().includes(kw)) return true;
+      if ((t.category || '').toLowerCase().includes(kw)) return true;
+      return String(t.amount).includes(kw);
+    });
+  } else {
+    listTxs = txs.filter((t) => monthStr(t.date) === month);
+  }
+  listTxs.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
 
-  // 流水
-  const monthTxs = txs.filter((t) => monthStr(t.date) === month)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  // 汇总卡：搜索时换成一行结果统计，避免与「本月」字样混淆
+  summaryCard.hidden = searching;
+  searchInfo.hidden = !searching;
+  if (searching) {
+    const s = listTxs.reduce((acc, t) => {
+      if (t.type === 'expense') acc.expense += t.amount; else acc.income += t.amount;
+      return acc;
+    }, { expense: 0, income: 0 });
+    searchInfo.textContent = listTxs.length
+      ? `找到 ${listTxs.length} 笔 · 支出 ${fmtMoney(round2(s.expense))} · 收入 ${fmtMoney(round2(s.income))}`
+      : `没有找到「${search.trim()}」相关的记录`;
+  } else {
+    const sum = monthSummary(txs, month);
+    document.getElementById('sum-expense').textContent = fmtMoney(sum.expense);
+    document.getElementById('sum-income').textContent = fmtMoney(sum.income);
+    document.getElementById('sum-balance').textContent = fmtMoney(sum.balance);
+    document.getElementById('sum-balance').style.color = sum.balance < 0 ? 'var(--danger)' : '';
+
+    // 迷你预算条
+    const budgetEl = document.getElementById('budget-mini');
+    getTotalBudget(month).then((b) => {
+      if (b && b.amount > 0) {
+        budgetEl.hidden = false;
+        const st = budgetStatus(sum.expense, b.amount);
+        document.getElementById('budget-mini-progress').textContent = `${Math.round(st.pct * 100)}% · ${fmtMoney(b.amount)}`;
+        const fill = document.getElementById('budget-mini-fill');
+        fill.style.width = `${st.pct * 100}%`;
+        fill.className = 'progress-fill' + (st.cls ? ' ' + st.cls : '');
+      } else {
+        budgetEl.hidden = true;
+      }
+    });
+  }
 
   const list = document.getElementById('tx-list');
   const empty = document.getElementById('tx-empty');
-  empty.classList.toggle('hidden', monthTxs.length > 0);
   list.innerHTML = '';
 
-  if (!monthTxs.length) return;
+  if (!listTxs.length) {
+    empty.classList.toggle('hidden', searching);   // 搜索无结果时用结果行提示
+    return;
+  }
+  empty.classList.add('hidden');
+
+  // 长列表分段：只渲染前 limit 条，其余按需加载
+  const cap = limit && limit > 0 ? limit : listTxs.length;
+  const shown = listTxs.slice(0, cap);
 
   const byDay = new Map();
-  for (const t of monthTxs) {
+  for (const t of shown) {
     if (!byDay.has(t.date)) byDay.set(t.date, []);
     byDay.get(t.date).push(t);
   }
 
+  const thisYear = String(new Date().getFullYear());
   const days = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
   for (const day of days) {
     const items = byDay.get(day);
-    const ds = daySummary(txs, day);
+    const ds = daySummary(shown, day);
+    const label = searching && day.slice(0, 4) !== thisYear ? fmtDateCN(day) : fmtDayLabel(day);
     const dayDiv = document.createElement('div');
     dayDiv.className = 'tx-day';
 
     const head = document.createElement('div');
     head.className = 'tx-day-head';
-    head.innerHTML = `<span>${esc(fmtDayLabel(day))}</span>
+    head.innerHTML = `<span>${esc(label)}</span>
       <span class="tx-day-sum">
         ${ds.expense ? `<span class="expense">-${fmtMoneyNoCur(ds.expense)}</span>` : ''}
         ${ds.expense && ds.income ? ' · ' : ''}
@@ -89,6 +126,15 @@ function renderLedger(cats, txs, month) {
       dayDiv.appendChild(item);
     }
     list.appendChild(dayDiv);
+  }
+
+  if (shown.length < listTxs.length) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.id = 'btn-load-more';
+    more.className = 'load-more';
+    more.textContent = `显示更多（还有 ${listTxs.length - shown.length} 笔）`;
+    list.appendChild(more);
   }
 }
 

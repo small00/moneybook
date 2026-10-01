@@ -17,6 +17,12 @@
 <body>
 <div id="app">
 
+  <!-- 新版本就绪提示条 -->
+  <div id="update-bar" class="update-bar" hidden>
+    <span class="update-text">新版本已就绪</span>
+    <button id="btn-update" class="update-btn" type="button">立即更新</button>
+  </div>
+
   <!-- 顶部 -->
   <header id="app-header">
     <div id="header-title">明细</div>
@@ -32,7 +38,14 @@
 
     <!-- ===== 明细页 ===== -->
     <section id="page-ledger" class="page">
-      <div class="summary-card card">
+      <div class="search-bar" id="search-bar">
+        <span class="search-icon">🔍</span>
+        <input id="input-search" type="search" placeholder="搜索备注 / 分类 / 金额" autocomplete="off">
+        <button id="btn-search-clear" class="search-clear" type="button" hidden aria-label="清除">✕</button>
+      </div>
+      <div class="search-info" id="search-info" hidden></div>
+
+      <div class="summary-card card" id="summary-card">
         <div class="summary-row">
           <div class="summary-item">
             <div class="summary-label">本月支出</div>
@@ -160,7 +173,7 @@
         <div id="cloud-status" class="settings-desc"></div>
       </div>
       <div class="card about-card">
-        <div class="about-line">记账本 v1.1.0</div>
+        <div class="about-line">记账本 v1.2.0</div>
         <div class="about-line muted">纯本地应用 · 无广告 · 无云同步 · 数据只在你手机里</div>
       </div>
     </section>
@@ -189,51 +202,65 @@
   <!-- 悬浮记账按钮 -->
   <button id="fab" aria-label="记一笔">＋</button>
 
-  <!-- 记账弹窗（底部抽屉） -->
+  <!-- 记账弹窗（底部抽屉）：内容区可滚动，金额键盘固定在弹窗底部永不离开视野 -->
   <div id="modal-add" class="sheet-mask" hidden>
-    <div class="sheet" role="dialog" aria-modal="true" aria-label="记一笔">
+    <div class="sheet sheet-add" role="dialog" aria-modal="true" aria-label="记一笔">
       <div class="sheet-grabber"></div>
       <div class="sheet-head">
         <span class="sheet-title" id="add-title">记一笔</span>
         <button class="icon-btn" id="btn-close-add" aria-label="关闭">✕</button>
       </div>
 
-      <div class="type-switch">
-        <button id="type-expense" class="type-btn active">支出</button>
-        <button id="type-income" class="type-btn">收入</button>
+      <div class="sheet-body" id="add-body">
+        <div class="type-switch">
+          <button id="type-expense" class="type-btn active">支出</button>
+          <button id="type-income" class="type-btn">收入</button>
+        </div>
+
+        <div class="amount-row">
+          <span class="amount-cur">¥</span>
+          <input id="input-amount" class="amount-input" type="text" inputmode="none" readonly placeholder="0.00" autocomplete="off">
+        </div>
+
+        <div id="cat-picker" class="cat-picker"></div>
+
+        <div class="form-row compact">
+          <span class="form-label">备注</span>
+          <input id="input-note" type="text" maxlength="50" placeholder="选填" autocomplete="off" enterkeyhint="done">
+        </div>
+
+        <div class="form-row compact date-row">
+          <span class="form-label">日期</span>
+          <div class="date-quick" id="date-quick">
+            <button class="date-chip" type="button" data-off="-1">昨天</button>
+            <button class="date-chip" type="button" data-off="-2">前天</button>
+          </div>
+          <button id="btn-date" class="date-value" type="button">今天</button>
+        </div>
       </div>
 
-      <div class="amount-row">
-        <span class="amount-cur">¥</span>
-        <input id="input-amount" class="amount-input" type="text" inputmode="none" readonly placeholder="0.00" autocomplete="off">
-      </div>
-
-      <div id="cat-picker" class="cat-picker"></div>
-
-      <div class="form-row">
-        <span class="form-label">备注</span>
-        <input id="input-note" type="text" maxlength="50" placeholder="选填" autocomplete="off">
-      </div>
-      <div class="form-row">
-        <span class="form-label">日期</span>
-        <button id="btn-date" class="date-value" type="button">今天</button>
-      </div>
-
-      <!-- 内置金额键盘 -->
+      <!-- 内置金额键盘（固定底部）。布局：数字 7-8-9 在上、右侧一列功能键，
+           与手机拨号盘一致；＋/－ 是连续计算（12＋5 → 完成存 17） -->
       <div class="numpad" id="numpad">
-        <button class="np-key" type="button" data-k="1">1</button>
-        <button class="np-key" type="button" data-k="2">2</button>
-        <button class="np-key" type="button" data-k="3">3</button>
-        <button class="np-key np-fn" type="button" data-k="del">⌫</button>
-        <button class="np-key" type="button" data-k="4">4</button>
-        <button class="np-key" type="button" data-k="5">5</button>
-        <button class="np-key" type="button" data-k="6">6</button>
-        <button class="np-key np-fn" type="button" data-k=".">.</button>
         <button class="np-key" type="button" data-k="7">7</button>
         <button class="np-key" type="button" data-k="8">8</button>
         <button class="np-key" type="button" data-k="9">9</button>
-        <button class="np-key np-fn" type="button" data-k="0">0</button>
-        <button class="np-save" id="btn-np-save" type="button">保 存</button>
+        <button class="np-fn" id="np-today" type="button">今天</button>
+
+        <button class="np-key" type="button" data-k="4">4</button>
+        <button class="np-key" type="button" data-k="5">5</button>
+        <button class="np-key" type="button" data-k="6">6</button>
+        <button class="np-fn" type="button" data-op="+">＋</button>
+
+        <button class="np-key" type="button" data-k="1">1</button>
+        <button class="np-key" type="button" data-k="2">2</button>
+        <button class="np-key" type="button" data-k="3">3</button>
+        <button class="np-fn" type="button" data-op="-">－</button>
+
+        <button class="np-key" type="button" data-k=".">.</button>
+        <button class="np-key" type="button" data-k="0">0</button>
+        <button class="np-key" type="button" data-k="del">⌫</button>
+        <button class="np-save" id="btn-np-save" type="button">完成</button>
       </div>
     </div>
   </div>

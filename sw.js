@@ -1,8 +1,11 @@
 /* ===== Service Worker：离线缓存 =====
- * 策略：network-first（先网络，失败回退缓存）。
- * 保证代码更新后用户刷新即可拿到最新版；断网时走缓存离线可用。
+ * 策略：stale-while-revalidate —— 有缓存就立即用缓存（秒开，不等网络），
+ * 同时在后台拉最新版本写入缓存，下次打开即为最新版。
+ * 之所以不用 network-first：GitHub Pages 在国内访问常有 0.3~1s 往返，
+ * 每次启动都等一轮网络是首屏卡顿的主要原因。
+ * 新版本装好后页面会收到通知并显示顶部提示条，用户可一键立即更新。
  */
-const CACHE = 'moneybook-v1';
+const CACHE = 'moneybook-v1.2.0';
 const ASSETS = [
   './',
   './index.html',
@@ -36,18 +39,23 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;   // 云备份等跨域请求不接管
 
-  // 绕过浏览器 HTTP 缓存（GitHub Pages 会给静态文件加缓存），
-  // 每次打开都向服务器重新验证，保证代码更新立即生效
   e.respondWith(
-    fetch(req, { cache: 'no-cache' })
-      .then((res) => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+    caches.match(req).then((cached) => {
+      // 绕过浏览器 HTTP 缓存，确保拿到的是最新版本
+      const network = fetch(req, { cache: 'no-cache' })
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => cached || caches.match('./index.html'));
+
+      return cached || network;   // 有缓存立即返回；首次访问才等网络
+    })
   );
 });

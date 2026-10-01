@@ -101,8 +101,8 @@ input { font-family: inherit; }
 
 /* ===== 主区 ===== */
 #main { padding: 8px 16px calc(var(--tabbar-h) + var(--safe-bottom) + 88px + var(--chrome-h, 0px)); }
-.page { animation: fadeIn .18s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.page { animation: fadeIn .1s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .card {
   background: var(--card);
@@ -336,6 +336,28 @@ input { font-family: inherit; }
 }
 .sheet-footer .btn { margin-top: 0; }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+
+/* 记账弹窗专用：头部固定 + 内容区滚动 + 金额键盘永远吸在弹窗底部
+   （关键：.sheet-body 用 min-height:0 + overflow-y:auto，否则 flex 子项不会滚动） */
+.sheet-add {
+  display: flex; flex-direction: column;
+  padding: 8px 0 0;
+  overflow: hidden;
+}
+.sheet-add .sheet-head { padding: 0 20px; margin-bottom: 8px; }
+.sheet-add .sheet-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 0 20px;
+  scrollbar-width: none;
+}
+.sheet-add .sheet-body::-webkit-scrollbar { display: none; }
+.sheet-add .numpad {
+  flex: 0 0 auto;
+  padding: 10px 20px calc(12px + var(--safe-bottom));
+  background: var(--sheet-bg);
+  border-top: 1px solid var(--border);
+}
 .sheet-grabber { width: 40px; height: 4px; border-radius: 999px; background: var(--border); margin: 4px auto 12px; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .sheet-title { font-size: 18px; font-weight: 700; }
@@ -352,48 +374,54 @@ input { font-family: inherit; }
 /* ===== 记账表单 ===== */
 .type-switch {
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-  background: var(--bg); padding: 4px; border-radius: 12px; margin-bottom: 14px;
+  background: var(--bg); padding: 4px; border-radius: 12px; margin-bottom: 10px;
 }
-.type-btn { padding: 10px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); transition: all .15s ease; }
+.type-btn { padding: 9px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); transition: all .15s ease; }
 .type-btn.active { background: var(--card); box-shadow: var(--shadow); color: var(--expense); }
 .type-btn[data-t="income"].active { color: var(--income); }
 
-.amount-row { display: flex; align-items: center; gap: 8px; padding: 4px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.amount-cur { font-size: 28px; font-weight: 700; color: var(--muted); }
+.amount-row { display: flex; align-items: center; gap: 8px; padding: 0 0 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.amount-cur { font-size: 26px; font-weight: 700; color: var(--muted); }
 .amount-input {
-  flex: 1; font-size: 40px; font-weight: 800; background: none; border: none; outline: none;
+  flex: 1; font-size: 34px; font-weight: 800; background: none; border: none; outline: none;
   color: var(--text); font-variant-numeric: tabular-nums;
   min-width: 0;
 }
 .amount-input::placeholder { color: var(--border); }
 
-/* ===== 内置金额键盘 ===== */
-.numpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 16px; }
-.np-key {
-  height: 48px; border-radius: 12px;
-  background: var(--bg); font-size: 20px; font-weight: 600; color: var(--text);
+/* ===== 内置金额键盘 =====
+   4 列：左侧数字 7-8-9 在上（同手机拨号盘），右侧一列功能键（今天 / ＋ / －），
+   右下角「完成」保存。 */
+.numpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.np-key,
+.np-fn,
+.np-save {
+  height: 46px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   font-variant-numeric: tabular-nums;
-  transition: background .1s ease, transform .1s ease;
+  transition: background .1s ease, color .1s ease, transform .1s ease;
 }
+.np-key { background: var(--bg); font-size: 21px; font-weight: 600; color: var(--text); }
 .np-key:active { background: var(--primary-soft); transform: scale(.96); }
-.np-fn { color: var(--primary); font-size: 22px; }
+/* 右侧功能键 */
+.np-fn { background: var(--primary-soft); color: var(--primary); font-size: 17px; font-weight: 700; }
+.np-fn:active { transform: scale(.96); }
+.np-fn.on { background: var(--primary); color: #fff; }   /* 当前选中的运算符 */
+/* 右下角「完成」 */
 .np-save {
-  grid-column: 1 / -1; height: 50px; border-radius: 14px;
   background: linear-gradient(135deg, #34d399, var(--primary-dark));
-  color: #fff; font-size: 17px; font-weight: 700; letter-spacing: 4px;
+  color: #fff; font-size: 16px; font-weight: 700; letter-spacing: 2px;
   box-shadow: 0 4px 14px rgba(16, 185, 129, .3);
-  transition: transform .1s ease, opacity .1s ease;
 }
 .np-save:active { transform: scale(.98); opacity: .9; }
 
-.cat-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 6px; margin-bottom: 18px; }
+.cat-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px 4px; margin-bottom: 10px; }
 .cat-cell {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 2px; border-radius: 12px; font-size: 12px; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 2px; border-radius: 12px; font-size: 12px; color: var(--muted);
   transition: all .12s ease;
 }
-.cat-cell .cat-cell-icon { font-size: 26px; line-height: 1.2; }
+.cat-cell .cat-cell-icon { font-size: 24px; line-height: 1.15; }
 .cat-cell:active { background: var(--primary-soft); }
 .cat-cell.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .cat-cell.active .cat-cell-icon { transform: scale(1.12); }
@@ -407,21 +435,34 @@ input { font-family: inherit; }
 .cat-more-btn:active { background: var(--primary-soft); }
 .cat-more-btn.on { color: var(--primary); font-weight: 600; }
 
-.form-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.form-label { width: 48px; font-size: 15px; color: var(--muted); flex-shrink: 0; }
+.form-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.form-row.compact { padding: 8px 0; }
+.form-row:last-child { border-bottom: none; }
+.form-label { width: 44px; font-size: 15px; color: var(--muted); flex-shrink: 0; }
 .form-row input {
   flex: 1; background: none; border: none; outline: none; font-size: 16px; color: var(--text); min-width: 0;
 }
 .form-row input[type="date"] { -webkit-appearance: none; appearance: none; }
 
+/* 日期行（记账弹窗）：今天/昨天/前天 快捷 chip + 自定义日期按钮 */
+.date-row { gap: 8px; }
+.date-quick { display: flex; gap: 6px; flex: 0 0 auto; }
+.date-chip {
+  padding: 6px 10px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  background: var(--bg); color: var(--muted);
+  transition: all .12s ease;
+}
+.date-chip:active { background: var(--border); }
+.date-chip.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+
 /* 日期显示按钮（记账弹窗） */
 .date-value {
-  flex: 1; text-align: left; font-size: 16px; color: var(--text);
-  background: none; padding: 8px 28px 8px 0; border-radius: 8px;
-  position: relative; font-variant-numeric: tabular-nums;
+  flex: 1 1 auto; text-align: right; font-size: 15px; color: var(--text);
+  background: none; padding: 6px 22px 6px 4px; border-radius: 8px;
+  position: relative; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .date-value::after {
-  content: '›'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  content: '›'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
   color: var(--muted); font-size: 18px;
 }
 .date-value:active { color: var(--primary); }
@@ -443,6 +484,53 @@ input { font-family: inherit; }
 @media (max-width: 480px) {
   .summary-value { font-size: 16px; }
 }
+
+/* ===== 明细页搜索 ===== */
+.search-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border-radius: 12px;
+  padding: 8px 12px; margin-bottom: 10px;
+  box-shadow: var(--shadow);
+}
+.search-icon { font-size: 14px; opacity: .55; flex-shrink: 0; }
+.search-bar input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  font-size: 15px; color: var(--text);
+}
+.search-bar input::-webkit-search-cancel-button,
+.search-bar input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+.search-clear {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 999px;
+  background: var(--border); color: var(--muted);
+  font-size: 12px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.search-info { font-size: 13px; color: var(--muted); padding: 0 4px 10px; }
+
+/* 明细长列表的「显示更多」 */
+.load-more {
+  display: block; width: 100%; margin: 12px 0 4px;
+  padding: 12px; border-radius: 12px;
+  background: var(--card); color: var(--primary);
+  font-size: 14px; font-weight: 600;
+  box-shadow: var(--shadow);
+}
+.load-more:active { background: var(--bg); }
+
+/* ===== 新版本就绪提示条 ===== */
+.update-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--primary); color: #fff;
+  padding: calc(6px + var(--safe-top, 0px)) 16px 6px;
+  font-size: 14px;
+}
+.update-text { font-weight: 500; }
+.update-btn {
+  background: rgba(255,255,255,.22); color: #fff;
+  padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  flex-shrink: 0;
+}
+.update-btn:active { background: rgba(255,255,255,.35); }
 
 /* ===== Toast ===== */
 .toast {
@@ -481,6 +569,8 @@ input { font-family: inherit; }
   transition: all .12s ease; position: relative;
 }
 .month-cell:active { background: var(--primary-soft); }
+/* 有记录的月份：浅底高亮，翻历史时一眼看出哪些月有账 */
+.month-cell.has-data { background: var(--primary-soft); color: var(--primary-dark); font-weight: 700; }
 .month-cell.active { background: var(--primary); color: #fff; }
 .month-cell.is-now::after {
   content: ''; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);

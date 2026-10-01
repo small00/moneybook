@@ -15,8 +15,18 @@
     catExpanded: false,  // 记账弹窗分类是否展开
     catDetail: null,     // 统计页正在查看的分类明细 {type, category}
     modalYear: 0,        // 月份选择弹窗当前年份
+    search: '',          // 明细页搜索关键词（跨月搜索）
+    ledgerLimit: 80,     // 明细页当前渲染条数（长列表分段加载）
+    npAcc: '',           // 键盘：已确定的数值（左操作数 / 中间结果）
+    npOp: null,          // 键盘：当前运算符 '+' | '-'
+    npCur: '',           // 键盘：正在输入的数字
     cloud: { token: '', repo: 'small00/moneybook-backup', auto: false, last: null }
   };
+
+  /* 数据变更标记：写操作后置位 → 下次 refresh 才重读 IndexedDB；
+     每页记录上次渲染的特征，特征未变就跳过重建（切页不再整页重画、不闪） */
+  let _dataDirty = true;
+  const _pageKeys = {};
 
   const $ = (id) => document.getElementById(id);
 
@@ -40,6 +50,9 @@
   async function init() {
     state.cats = await initCategories();
     state.txs = await getAllTx();
+    _dataDirty = false;
+    // 打开时落在最近有记录的月份：当前月还没有记录时不再让用户看到空白页
+    state.month = pickInitialMonth(state.txs);
     state.addCategory = state.cats.find((c) => c.type === 'expense' && c.name === '餐饮')
       ? '餐饮' : state.cats.find((c) => c.type === 'expense').name;
 
@@ -68,20 +81,14 @@
   }
 
   /* iOS 键盘/Safari 工具栏补偿：
-   * 底部固定元素（导航/记账按钮/toast/弹窗）按被占用的底部高度动态避让；
-   * 键盘弹出时把打开的底部弹窗滚到底部，保证"保存"按钮可见可点 */
+   * 底部固定元素（导航/记账按钮/toast/弹窗）按被占用的底部高度动态避让。
+   * 金额键盘已固定在记账弹窗底部，因此不再需要把弹窗内容滚到底去找保存键 */
   function setupChromeOffset() {
     if (!window.visualViewport) return;
     const vv = window.visualViewport;
     const apply = () => {
       const h = window.innerHeight - vv.height;
       document.documentElement.style.setProperty('--chrome-h', Math.max(h, 0) + 'px');
-      if (h > 120) {
-        const open = document.querySelector('.sheet-mask:not([hidden]) .sheet');
-        if (open && open.scrollHeight > open.clientHeight) {
-          open.scrollTop = open.scrollHeight;
-        }
-      }
     };
     vv.addEventListener('resize', apply);
     vv.addEventListener('scroll', apply);
@@ -89,18 +96,52 @@
   }
 
   /* ---------- 刷新当前页 ---------- */
-  async function refresh() {
-    state.txs = await getAllTx();
-    if (state.page === 'ledger') renderLedger(state.cats, state.txs, state.month);
-    else if (state.page === 'stats') {
-      renderStats(state.cats, state.txs, state.month, state.statType);
-      if (state.catDetail) {
-        renderCatDetail(state.cats, state.txs, state.month, state.catDetail.type, state.catDetail.category);
-      }
+  /* 写操作后调用：标记数据已变，并让所有页面下次访问时重建 */
+  function invalidate() {
+    _dataDirty = true;
+    Object.keys(_pageKeys).forEach((k) => delete _pageKeys[k]);
+  }
+
+  /* 每页的渲染特征：相同就不重建 DOM（切页只切换可见性） */
+  function pageKey(page) {
+    const n = state.txs.length;
+    if (page === 'ledger') return [state.month, state.search, state.ledgerLimit, n].join('|');
+    if (page === 'stats') return [state.month, state.statType, state.catDetail ? state.catDetail.category : '', n].join('|');
+    if (page === 'budget') return [state.month, n].join('|');
+    return [state.cats.length, n].join('|');
+  }
+
+  async function refresh(opts) {
+    const o = opts || {};
+    if (_dataDirty) {
+      state.txs = await getAllTx();
+      _dataDirty = false;
     }
-    else if (state.page === 'budget') renderBudget(state.cats, state.txs, state.month);
+
+    // 分类明细弹窗独立于当前页，需要跟着数据一起刷新
+    if (state.catDetail && !o.skipCatDetail) {
+      renderCatDetail(state.cats, state.txs, state.month, state.catDetail.type, state.catDetail.category);
+    }
+
+    const page = state.page;
+    const key = pageKey(page);
+    if (!o.force && _pageKeys[page] === key) { renderCloudStatus(); return; }
+    _pageKeys[page] = key;
+
+    if (page === 'ledger') renderLedger(state.cats, state.txs, state.month, state.search, state.ledgerLimit);
+    else if (page === 'stats') renderStats(state.cats, state.txs, state.month, state.statType);
+    else if (page === 'budget') renderBudget(state.cats, state.txs, state.month);
     else renderSettings(state.cats);
     renderCloudStatus();
+  }
+
+  /* 启动时落在最近有记录的月份：当前月还没有任何记录时，直接跳到有数据的那一个月 */
+  function pickInitialMonth(txs) {
+    const cur = currentMonth();
+    if (!txs.length) return cur;
+    if (txs.some((t) => monthStr(t.date) === cur)) return cur;
+    const months = txs.map((t) => monthStr(t.date)).filter(Boolean).sort();
+    return months.length ? months[months.length - 1] : cur;
   }
 
   function updateHeader() {
@@ -127,6 +168,41 @@
     // Tab 切换
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => switchPage(btn.dataset.page));
+    });
+
+    // 明细页搜索（跨全部月份，180ms 防抖）
+    let searchTimer = null;
+    const applySearch = () => {
+      const val = $('input-search').value.trim();
+      $('btn-search-clear').hidden = !val;
+      state.search = val;
+      state.ledgerLimit = 80;
+      delete _pageKeys.ledger;
+      if (state.page !== 'ledger') switchPage('ledger');
+      else refresh({ force: true });
+    };
+    $('input-search').addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(applySearch, 180);
+    });
+    $('input-search').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $('input-search').blur(); }
+    });
+    $('btn-search-clear').addEventListener('click', () => {
+      $('input-search').value = '';
+      $('btn-search-clear').hidden = true;
+      state.search = '';
+      state.ledgerLimit = 80;
+      delete _pageKeys.ledger;
+      refresh({ force: true });
+    });
+
+    // 明细长列表：一次多渲染 120 条
+    $('tx-list').addEventListener('click', (e) => {
+      if (!e.target.closest('#btn-load-more')) return;
+      state.ledgerLimit += 120;
+      delete _pageKeys.ledger;
+      refresh({ force: true });
     });
 
     // 月份切换
@@ -171,10 +247,23 @@
       const d = Number(readWheel($('wheel-day')));
       if (!y || !m || !d) { toast('请选择日期'); return; }
       state.addDate = `${y}-${pad2(m)}-${pad2(d)}`;
-      $('btn-date').textContent = fmtDateCN(state.addDate);
+      updateDateQuick();
       closeDateModal();
     });
     $('btn-date-cancel').addEventListener('click', closeDateModal);
+
+    // 日期快捷：今天 / 昨天 / 前天
+    $('date-quick').addEventListener('click', (e) => {
+      const chip = e.target.closest('.date-chip');
+      if (!chip) return;
+      state.addDate = offsetDateStr(Number(chip.dataset.off));
+      updateDateQuick();
+    });
+
+    // 备注：回车即收起系统键盘
+    $('input-note').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $('input-note').blur(); }
+    });
 
     // 记账
     $('fab').addEventListener('click', () => openAddModal());
@@ -201,11 +290,14 @@
       state.addCategory = cell.dataset.name;
     });
 
-    // 内置金额键盘
+    // 内置金额键盘（数字键 + 今天/＋/－/完成）
     $('numpad').addEventListener('click', (e) => {
+      if (e.target.closest('#btn-np-save')) { saveTx(); return; }
+      if (e.target.closest('#np-today')) { npToday(); return; }
+      const op = e.target.closest('.np-fn[data-op]');
+      if (op) { npOperator(op.dataset.op); return; }
       const key = e.target.closest('.np-key');
-      if (key) { npInput(key.dataset.k); return; }
-      if (e.target.closest('#btn-np-save')) saveTx();
+      if (key) npInput(key.dataset.k);
     });
 
     // 流水操作
@@ -221,6 +313,7 @@
       closeTxModal();
       toast('已删除');
       scheduleAutoBackup();
+      invalidate();
       refresh();
     });
     $('btn-tx-edit').addEventListener('click', () => {
@@ -239,6 +332,7 @@
       if (!del) return;
       await deleteCategoryBudget(state.month, del.dataset.cat);
       toast('已删除');
+      invalidate();
       refresh();
     });
     $('btn-close-budget').addEventListener('click', closeBudgetModal);
@@ -253,6 +347,7 @@
       if (move) {
         await moveCategory(move.dataset.id, Number(move.dataset.dir));
         state.cats = await initCategories();
+        invalidate();
         renderSettings(state.cats);
         return;
       }
@@ -261,6 +356,7 @@
         await deleteCategory(del.dataset.id, del.dataset.type);
         state.cats = await initCategories();
         toast('已删除');
+        invalidate();
         renderSettings(state.cats);
         return;
       }
@@ -310,6 +406,9 @@
     $('btn-close-cat-detail').addEventListener('click', closeCatDetail);
     $('modal-cat-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCatDetail(); });
 
+    // 新版本就绪 → 立即更新
+    $('btn-update').addEventListener('click', () => window.location.reload());
+
     // 键盘 Enter 保存
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { closeAddModal(); closeTxModal(); closeBudgetModal(); closeCatModal(); closeMonthModal(); closeDateModal(); closeCatDetail(); }
@@ -343,13 +442,16 @@
     const curYear = now.getFullYear();
     const curMonth = now.getMonth() + 1;
     const [selYear, selMonth] = state.month.split('-').map(Number);
+    // 有记录的月份加粗标记，点几个月就能找回来，不用一个个翻
+    const hasData = new Set(state.txs.map((t) => monthStr(t.date)));
 
     for (let m = 1; m <= 12; m++) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'month-cell'
         + (selYear === state.modalYear && selMonth === m ? ' active' : '')
-        + (curYear === state.modalYear && curMonth === m ? ' is-now' : '');
+        + (curYear === state.modalYear && curMonth === m ? ' is-now' : '')
+        + (hasData.has(`${state.modalYear}-${pad2(m)}`) ? ' has-data' : '');
       btn.dataset.month = String(m);
       btn.textContent = m + '月';
       grid.appendChild(btn);
@@ -357,24 +459,110 @@
   }
 
   /* ---------- 内置金额键盘 ---------- */
-  function npInput(key) {
+  /* 支持连续计算：12 ＋ 5 → 按「完成」存 17。
+     npAcc 是已确定的数值（左操作数/中间结果），npOp 是运算符，npCur 是正在输的数字。
+     显示规则：有运算符时显示完整算式，否则只显示 npCur。 */
+  function updateAmountDisplay() {
     const input = $('input-amount');
-    let v = input.value;
+    const text = state.npOp ? state.npAcc + state.npOp + state.npCur : state.npCur;
+    input.value = text;
+    // 算式变长时缩小字号，避免数字被挤出输入框
+    input.style.fontSize = text.length > 13 ? '22px' : text.length > 9 ? '27px' : '';
+    document.querySelectorAll('.np-fn[data-op]').forEach((b) => {
+      b.classList.toggle('on', !!state.npOp && b.dataset.op === state.npOp);
+    });
+  }
+
+  function npCalc(a, op, b) {
+    const x = parseFloat(a);
+    const y = parseFloat(b);
+    if (isNaN(x) || isNaN(y)) return '';
+    return String(round2(op === '+' ? x + y : x - y));
+  }
+
+  // 当前算式的结果（按「完成」时用它保存）
+  function npResult() {
+    if (state.npOp && state.npCur !== '') return npCalc(state.npAcc, state.npOp, state.npCur);
+    return state.npCur || state.npAcc || '';
+  }
+
+  function npInput(key) {
+    const v = state.npCur;
     if (key === 'del') {
-      v = v.slice(0, -1);
+      if (v !== '') {
+        state.npCur = v.slice(0, -1);
+      } else if (state.npOp) {
+        // 右操作数还空着 → 撤销运算符，回到刚才那个数
+        state.npCur = state.npAcc;
+        state.npAcc = '';
+        state.npOp = null;
+      }
     } else if (key === '.') {
-      if (!v.includes('.')) v = (v === '' ? '0' : v) + '.';
-    } else {
+      if (!v.includes('.')) state.npCur = (v === '' ? '0' : v) + '.';
+    } else if (key >= '0' && key <= '9') {
       if (v.includes('.')) {
-        if (v.split('.')[1].length >= 2) return;   // 小数最多两位
-        v += key;
+        if (v.split('.')[1].length >= 2) return;        // 小数最多两位
+        state.npCur = v + key;
+      } else if (v === '0') {
+        state.npCur = key;                              // 避免出现 05
+      } else if (v.replace('.', '').length >= 8) {
+        return;                                         // 最多 8 位整数
       } else {
-        if (v === '0') v = key;                    // 避免 05
-        else if (v.replace('.', '').length >= 8) return; // 最多 8 位整数
-        else v += key;
+        state.npCur = v + key;
       }
     }
-    input.value = v;
+    updateAmountDisplay();
+  }
+
+  /* ＋ / －：先把上一段算出来，再把新的运算符挂起来 */
+  function npOperator(op) {
+    if (state.npCur === '') {
+      if (state.npOp) state.npOp = op;                  // 还没输右操作数 → 只换运算符
+      updateAmountDisplay();
+      return;
+    }
+    state.npAcc = state.npOp ? npCalc(state.npAcc, state.npOp, state.npCur) : state.npCur;
+    if (state.npAcc === '') { updateAmountDisplay(); return; }
+    state.npCur = '';
+    state.npOp = op;
+    updateAmountDisplay();
+  }
+
+  function npReset() {
+    state.npAcc = '';
+    state.npOp = null;
+    state.npCur = '';
+    updateAmountDisplay();
+  }
+
+  /* 键盘右侧的「今天」 */
+  function npToday() {
+    state.addDate = todayStr();
+    updateDateQuick();
+  }
+
+  /* ---------- 日期工具（今天 / 昨天 / 前天 快捷） ---------- */
+  function offsetDateStr(off) {
+    const [y, m, d] = todayStr().split('-').map(Number);
+    const dt = new Date(y, m - 1, d + off);
+    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+  }
+
+  /* a - b 相差的天数（入参均为 YYYY-MM-DD） */
+  function dayDiff(a, b) {
+    const [y1, m1, d1] = a.split('-').map(Number);
+    const [y2, m2, d2] = b.split('-').map(Number);
+    return Math.round((new Date(y1, m1 - 1, d1) - new Date(y2, m2 - 1, d2)) / 86400000);
+  }
+
+  /* 同步记账弹窗日期区：高亮 今天/昨天/前天，并把按钮文本压成短日期 */
+  function updateDateQuick() {
+    const diff = dayDiff(state.addDate, todayStr());
+    document.querySelectorAll('#date-quick .date-chip').forEach((chip) => {
+      chip.classList.toggle('on', Number(chip.dataset.off) === diff);
+    });
+    const names = { 0: '今天', '-1': '昨天', '-2': '前天' };
+    $('btn-date').textContent = names[String(diff)] || fmtDateCN(state.addDate);
   }
 
   /* ---------- 日期选择弹窗（三列滚轮） ---------- */
@@ -496,17 +684,27 @@
     const catIdx = catList.findIndex((c) => c.name === cat);
     if (catIdx >= 10) state.catExpanded = true;
     setAddType(type, cat);
-    $('input-amount').value = amount;
+    // 金额输入状态复位（编辑记录时把原金额放进 npCur）
+    state.npAcc = '';
+    state.npOp = null;
+    state.npCur = amount;
+    updateAmountDisplay();
     $('input-note').value = note;
     state.addDate = t ? t.date : todayStr();
-    $('btn-date').textContent = fmtDateCN(state.addDate);
+    updateDateQuick();
 
     $('modal-add').hidden = false;
+    // 弹窗一打开让内容区回到顶部（金额/分类最常用）
+    const body = $('add-body');
+    if (body) body.scrollTop = 0;
   }
 
   function closeAddModal() {
     $('modal-add').hidden = true;
     state.editingId = null;
+    state.npAcc = '';
+    state.npOp = null;
+    state.npCur = '';
   }
 
   function setAddType(type, keepCat) {
@@ -522,7 +720,12 @@
   }
 
   async function saveTx() {
-    const amount = parseFloat($('input-amount').value);
+    // 连续计算：把算式算成最终金额
+    const amount = parseFloat(npResult());
+    if (state.npOp && amount < 0) {
+      toast('算出来是负数，改一下吧');
+      return;
+    }
     if (!amount || amount <= 0) {
       toast('请输入金额');
       return;
@@ -545,6 +748,7 @@
     }
     closeAddModal();
     scheduleAutoBackup();
+    invalidate();
     refresh();
   }
 
@@ -586,6 +790,7 @@
       toast('分类预算已添加');
     }
     closeBudgetModal();
+    invalidate();
     refresh();
   }
 
@@ -643,6 +848,7 @@
     state.cats = await initCategories();
     closeCatModal();
     toast('已添加');
+    invalidate();
     renderSettings(state.cats);
     if (state.addType === type) renderCatPicker(state.cats, type, state.addCategory, state.catExpanded);
   }
@@ -674,6 +880,7 @@
       state.txs = await getAllTx();
       toast('备份已导入');
       scheduleAutoBackup();
+      invalidate();
       refresh();
     } catch (err) {
       toast('导入失败：文件格式不正确');
@@ -781,6 +988,7 @@
       state.cats = await initCategories();
       state.txs = await getAllTx();
       toast('已从云端恢复');
+      invalidate();
       refresh();
     } catch (err) {
       toast('恢复失败：' + err.message);
@@ -824,16 +1032,18 @@
     document.querySelectorAll('.sheet').forEach((sheet) => {
       const mask = sheet.closest('.sheet-mask');
       if (!mask) return;
+      // 记账弹窗的滚动容器是内层 .sheet-body（金额键盘固定在弹窗底部，sheet 自身不滚动）
+      const scroller = sheet.querySelector('.sheet-body') || sheet;
       let startY = 0;
       let dragging = false;
       let follow = false;
 
       sheet.addEventListener('touchstart', (e) => {
-        // 触摸点位于可滚动的子元素内（如日期滚轮）时，禁用下拉关闭手势，
-        // 避免滚动滚轮/子区域被误判为下拉
+        // 触摸点在「除滚动容器外」的可滚动子元素内（如日期滚轮）→ 禁用手势，
+        // 避免滚动滚轮被误判成下拉关闭
         let t = e.target;
         while (t && t !== sheet) {
-          if (t.scrollHeight > t.clientHeight + 1) return;
+          if (t !== scroller && t.scrollHeight > t.clientHeight + 1) return;
           t = t.parentElement;
         }
         startY = e.touches[0].clientY;
@@ -845,7 +1055,7 @@
         if (!dragging) return;
         const dy = e.touches[0].clientY - startY;
         // 内容滚到顶 且 向下拉 → 启动下拉关闭
-        if (sheet.scrollTop <= 0 && dy > 0) {
+        if (scroller.scrollTop <= 0 && dy > 0) {
           if (!follow) {
             follow = true;
             sheet.style.transition = 'none';
@@ -885,9 +1095,20 @@
 
   /* ---------- Service Worker ---------- */
   function registerSW() {
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
+    if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+    // sw.js 里 install 时直接 skipWaiting，新 SW 不会停在 waiting 状态，
+    // 所以用 controllerchange 判断「新版本已接管页面」：只有本来就有旧 SW 时才提示，
+    // 首次安装（页面还没有 controller）不打扰用户。
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController) showUpdateBar();
+    });
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  function showUpdateBar() {
+    const bar = $('update-bar');
+    if (bar) bar.hidden = false;
   }
 
   if (document.readyState === 'loading') {
